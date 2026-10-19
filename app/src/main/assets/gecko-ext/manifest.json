@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+  "name": "Coco Surf",
+  "version": "1.2",
+  "description": "Extensión interna de Antena: informa a la app la posición de scroll de la página (plega/despliega la barra superior con el mando).",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "navegador@antena.tv"
+    }
+  },
+  "permissions": ["nativeMessaging", "nativeMessagingFromContent", "geckoViewAddons"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

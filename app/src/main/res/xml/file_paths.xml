@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Imágenes temporalmente copiadas al portapapeles (Fase 5). -->
+    <cache-path name="clip" path="clip/" />
+    <!-- PDF de páginas guardadas desde el menú contextual. -->
+    <external-files-path name="descargas" path="Download/" />
+    <cache-path name="impresion" path="impresion/" />
+</paths>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Antena" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/noche</item>
+        <item name="android:colorAccent">@color/ambar</item>
+        <item name="android:windowAllowReturnTransitionOverlap">true</item>
+    </style>
+</resources>

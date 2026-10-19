@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><title>visor</title>
+<body style="margin:0;background:#111;color:#eee;font:14px monospace">
+<pre id="out">cargando shot.png…</pre>
+<canvas id="c" style="display:none"></canvas>
+<script>
+(async () => {
+  const out = document.getElementById('out');
+  try {
+    const blob = await (await fetch('shot.png')).blob();
+    const bmp = await createImageBitmap(blob);
+    const W = 1920, H = 1080; // coordenadas de dispositivo
+    out.textContent = `tamaño imagen: ${bmp.width}x${bmp.height} (disp ${W}x${H})`;
+    window.__pixel = async (x, y) => {
+      const c = document.getElementById('c');
+      c.width = bmp.width; c.height = bmp.height;
+      const g = c.getContext('2d');
+      g.drawImage(bmp, 0, 0);
+      const sx = Math.round(x * bmp.width / W);
+      const sy = Math.round(y * bmp.height / H);
+      const d = g.getImageData(sx, sy, 1, 1).data;
+      return `rgb(${d[0]},${d[1]},${d[2]}) en ${x},${y}`;
+    };
+  } catch (e) { out.textContent = 'ERROR ' + e; }
+})();
+</script>

@@ -1,0 +1,76 @@
+# Built application files
+*.apk
+*.ap_
+
+# Files for the artierke analyzer
+*.timetrace
+
+# Gradle files
+.gradle/
+build/
+
+# Android Studio IDE
+.idea/
+*.iml
+
+# Android specific
+/local/.idea/
+/.idea/.name
+
+# Keystore files
+*.keystore
+*.pem
+
+# Plist files for React Native
+*.plist
+
+# Fastlane
+fastlane/
+
+# Covers (skip library)
+*.coverage/
+
+# Library stuff
+/node_modules/
+/.huskyrc
+/.husky/
+
+# OS specific
+.DS_Store
+.AppleDouble
+.LegacyMacOSX
+
+# Crashlytics
+com_crashlytics
+
+# Expo
+.expo
+
+# Repo
+/.repo/
+
+# Local configuration
+local.properties
+gradle.properties
+
+# Firebase
+google-services.json google-services.*.yml
+
+# API keys / secrets (if any)
+# Add any API keys or secrets here
+
+# APK files in root
+CocoSurf-0.4.0.apk
+
+# Repomix output
+repomix-output.xml
+
+# Distribution APKs
+dist/
+artifacts/
+
+# Temporary/python files
+.tmp-uasrv.py
+
+# Free buff (whatever this is)
+.freebuff/

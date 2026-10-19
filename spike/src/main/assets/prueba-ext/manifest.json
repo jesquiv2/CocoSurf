@@ -1,0 +1,19 @@
+{
+  "manifest_version": 2,
+  "name": "Prueba Antena",
+  "version": "1.0",
+  "description": "Extensión mínima para el spike M5: banner visible + informes de scroll por native messaging.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "prueba@antena.tv"
+    }
+  },
+  "permissions": ["nativeMessaging", "nativeMessagingFromContent", "geckoViewAddons"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

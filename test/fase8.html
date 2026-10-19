@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Antena · Prueba Fase 8</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#0A0D12; color:#ECE6D8; margin:0; padding:16px; }
+  h1 { font-size:20px; color:#E9A13B; }
+  section { background:#161B24; border:1px solid #2a3345; border-radius:8px; padding:12px; margin-bottom:12px; }
+  button { background:#5A78AD; color:#fff; border:0; border-radius:6px; padding:10px 14px; font-size:15px; margin:4px 4px 4px 0; }
+  #out { color:#7FB08A; font-size:14px; white-space:pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Prueba Fase 8 (automática)</h1>
+
+<section>
+  <h2>Resultado</h2>
+  <div id="out">ejecutando…</div>
+</section>
+
+<section>
+  <h2>Botones manuales (opcional)</h2>
+  <button onclick="lsSet()">Guardar valor</button>
+  <button onclick="lsGet()">Leer valor</button>
+  <button onclick="ckSet()">Crear cookie</button>
+  <button onclick="ckGet()">Leer cookie</button>
+  <button onclick="popup()">window.open()</button>
+</section>
+
+<script>
+var out = document.getElementById('out');
+function log(s){ out.textContent += "\n" + s; }
+function report(tag, val){
+  try { fetch('/report?' + tag + '=' + encodeURIComponent(val)); } catch(e){}
+}
+function lsSet(){ try{ localStorage.setItem('antena_prueba','fase8-OK'); log('localStorage guardado'); }catch(e){ log('ls ERR '+e); } }
+function lsGet(){ log('ls = '+(localStorage.getItem('antena_prueba')||'(vacío)')); }
+function ckSet(){ document.cookie='antena_fase8=OK; max-age=31536000; path=/'; }
+function ckGet(){ log('ck = '+(document.cookie||'(ninguna)')); }
+function popup(){ var w=window.open('fase8b.html','_blank'); log(w?'popup OK':'popup BLOQUEADA'); }
+
+// --- auto test ---
+window.addEventListener('error', function(e){ report('jse', e.message); });
+
+var run = 1;
+try { localStorage.setItem('antena_prueba','fase8-OK'); } catch(e){ run = 0; }
+report('ls1', run ? 'write-ok' : ('ERR ' + e));
+
+setTimeout(function(){
+  var v = null;
+  try { v = localStorage.getItem('antena_prueba'); } catch(e){}
+  report('ls2', v === 'fase8-OK' ? 'persist-ok' : ('BAD ' + v));
+
+  document.cookie = 'antena_fase8=OK; max-age=31536000; path=/';
+  var ck = document.cookie.indexOf('antena_fase8=OK') >= 0;
+  report('ck1', ck ? 'cookie-ok' : 'cookie-BAD');
+
+  report('ua', navigator.userAgent);
+
+  // popup sin gesto (prueba ventanas múltiples)
+  try {
+    var w = window.open('fase8b.html?auto=1','_blank');
+    report('popup', w ? 'popup-abierta' : 'popup-bloqueada');
+  } catch(e){ report('popup', 'EXC ' + e); }
+
+  report('fin', 'done');
+}, 800);
+</script>
+</body>
+</html>
