@@ -499,7 +499,10 @@ object Puntero {
                 z.estado.dispatchRawDelta(scrollDy * dpf)
                 h.postDelayed(this, 16)
             } else if (esWeb && !enPanel(decor.width.toFloat())) {
-                desplazar(scrollDx * dpf, scrollDy * dpf)
+                // Rueda del ratón en el punto del cursor: Gecko mueve el elemento que haya
+                // debajo (la lista de vídeos de YouTube, un panel interno…) y, si ya no puede
+                // más, la página entera. Si la rueda no llega, se usa el desplazamiento general.
+                if (!rueda(decor, scrollDx * dpf, scrollDy * dpf)) desplazar(scrollDx * dpf, scrollDy * dpf)
                 h.postDelayed(this, 16)
             } else {
                 arrastrar(decor, scrollDx * dpf * 3f, scrollDy * dpf * 3f)
@@ -507,6 +510,31 @@ object Puntero {
             }
         }
     }
+
+    /** Una vuelta de rueda en el cursor (px de pantalla que se quieren desplazar). */
+    private fun rueda(decor: android.view.View, dx: Float, dy: Float): Boolean = runCatching {
+        val ahora = SystemClock.uptimeMillis()
+        val props = MotionEvent.PointerProperties().apply {
+            id = 0
+            toolType = MotionEvent.TOOL_TYPE_MOUSE
+        }
+        val coords = MotionEvent.PointerCoords().apply {
+            x = pos.x
+            y = pos.y
+            // Positivo = hacia arriba/izquierda; una unidad = una «muesca» (el factor de Android).
+            val muesca = android.view.ViewConfiguration.get(decor.context).scaledVerticalScrollFactor
+                .coerceAtLeast(16f)
+            setAxisValue(MotionEvent.AXIS_VSCROLL, -dy / muesca)
+            setAxisValue(MotionEvent.AXIS_HSCROLL, -dx / muesca)
+        }
+        val e = MotionEvent.obtain(
+            ahora, ahora, MotionEvent.ACTION_SCROLL, 1, arrayOf(props), arrayOf(coords),
+            0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0,
+        )
+        val ok = decor.dispatchGenericMotionEvent(e)
+        e.recycle()
+        ok
+    }.getOrDefault(false)
 
     /**
      * «Pasar el ratón» por encima de la interfaz propia (barras, menús, paneles)

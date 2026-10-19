@@ -117,6 +117,7 @@ import java.util.Locale
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /* ── Handler de OK compartido (corto = acción, mantenido >0.5 s = larga) ── */
@@ -876,6 +877,7 @@ fun MenuDropdown(
     onDiagnostics: () -> Unit,
     onBitacora: () -> Unit,
     onAcerca: () -> Unit,
+    onClaves: () -> Unit = {},
     /** Cierra la aplicación. */
     onSalir: () -> Unit,
     version: String,
@@ -920,6 +922,7 @@ fun MenuDropdown(
         MenuRow("Descargas", icon = ToolIcon.Download, onClick = onDownloads)
         MenuDivisor()
         MenuRow("Complementos", icon = ToolIcon.Puzzle, onClick = onComplementos)
+        MenuRow("Contraseñas", icon = ToolIcon.Lock, onClick = onClaves)
         MenuRow("Configuración", icon = ToolIcon.Gear, value = engineName, onClick = onConfig)
         MenuDivisor()
         MenuRow("Información del sistema", icon = ToolIcon.Chip, onClick = onSystem)
@@ -1289,15 +1292,15 @@ private val ACERCA_CREDITOS = listOf(
 )
 
 /**
- * Enlace de «Cómprame un café». Crea tu página en buymeacoffee.com (gratis), copia
+ * Enlace de apoyo (Ko-fi de JEM Desarrollos; cubre PayPal). Antes: buymeacoffee, copia
  * su dirección aquí (p. ej. "https://buymeacoffee.com/tuusuario") y recompila: el
  * botón aparece solo cuando hay una dirección.
  */
-private const val ACERCA_CAFE_URL = ""
+private const val ACERCA_CAFE_URL = "https://ko-fi.com/jemdesarrollos"
 
 /** «Acerca de» como pestaña interna: identidad de la app, versión y datos del equipo. */
 @Composable
-fun AcercaPage(version: String, onClose: () -> Unit) {
+fun AcercaPage(version: String, onClose: () -> Unit, onAbrir: (String) -> Unit = {}) {
     val primero = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { primero.requestFocus() } }
     val motor = runCatching { org.mozilla.geckoview.BuildConfig.MOZ_APP_VERSION }.getOrDefault("—")
@@ -1362,18 +1365,13 @@ fun AcercaPage(version: String, onClose: () -> Unit) {
             Spacer(Modifier.height(6.dp))
         }
         if (ACERCA_CAFE_URL.isNotBlank()) {
-            val ctx = androidx.compose.ui.platform.LocalContext.current
             Spacer(Modifier.height(12.dp))
             RemoteChip(
-                label = "Cómprame un café",
+                label = "Invítame un café (Ko-fi)",
                 accent = true,
                 onClick = {
-                    runCatching {
-                        ctx.startActivity(
-                            Intent(Intent.ACTION_VIEW, Uri.parse(ACERCA_CAFE_URL))
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }
+                    // Se abre en el propio navegador: un TV no suele tener otro instalado.
+                    onAbrir(ACERCA_CAFE_URL)
                 },
             )
         }
@@ -1517,6 +1515,8 @@ fun ConfiguracionPage(
                         }
                     }
 
+                    SeccionAjustes("Fondo de la página de inicio") { AjusteFondoInicio() }
+
                     SeccionAjustes("Modo de página") {
                         Text(
                             "El diseño de escritorio muestra completos los vídeos verticales de " +
@@ -1646,27 +1646,27 @@ fun ConfiguracionPage(
     }
 }
 
-/* ── Página de inicio (dashboard): fondo de imagen + rejilla de favoritos ── */
+/* ── Página de inicio (dashboard): buscador, fondo opcional y rejilla de favoritos ── */
 @Composable
 fun DashboardPage(
     favorites: List<Favorite>,
     onOpen: (String) -> Unit,
     onDelete: (Favorite) -> Unit,
     onAdd: () -> Unit,
+    engineName: String = "",
+    onSearch: (String) -> Unit = {},
 ) {
-    // Fondo fotográfico de internet con degradado por si la imagen no carga.
+    // Fondo elegido por el usuario (nada por defecto: ahorra memoria).
     var hero by remember { mutableStateOf<Bitmap?>(null) }
     val contexto = androidx.compose.ui.platform.LocalContext.current
-    LaunchedEffect(Unit) {
-        // En un aparato justo de memoria no se carga la foto de fondo (varios MB).
-        if (com.antena.tv.gecko.Memoria.leer(contexto).pocaRam) return@LaunchedEffect
-        hero = withContext(Dispatchers.IO) {
-            runCatching {
-                val url = java.net.URL("https://picsum.photos/1280/720")
-                val conn = url.openConnection().apply { connectTimeout = 6000; readTimeout = 8000 }
-                val opciones = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
-                BitmapFactory.decodeStream(conn.getInputStream(), null, opciones)
-            }.getOrNull()
+    LaunchedEffect(FondoInicio.modo, FondoInicio.version) {
+        FondoInicio.cargar(contexto)
+        hero = when (FondoInicio.modo) {
+            FondoInicio.IMAGEN -> FondoInicio.leerImagen(contexto)
+            // La foto aleatoria baja varios MB: en un aparato justo de memoria no se carga.
+            FondoInicio.ALEATORIO ->
+                if (com.antena.tv.gecko.Memoria.leer(contexto).pocaRam) null else FondoInicio.leerAleatoria()
+            else -> null
         }
     }
 
@@ -1719,6 +1719,8 @@ fun DashboardPage(
                 modifier = Modifier.size(86.dp),
             )
             Text("Coco Surf", style = AntenaType.panel, color = Fosforo)
+            Spacer(Modifier.height(18.dp))
+            BuscadorInicio(engineName = engineName, onSearch = onSearch)
             Spacer(Modifier.height(26.dp))
 
             // Rejilla de 5 columnas; «Añadir» al final, con las demás fichas.
@@ -1741,6 +1743,143 @@ fun DashboardPage(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Ajustes del fondo del inicio: sin imagen, foto aleatoria o la imagen del usuario (archivo o dirección). */
+@Composable
+private fun AjusteFondoInicio() {
+    val c = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(Unit) { FondoInicio.cargar(c) }
+    var aviso by remember { mutableStateOf<String?>(null) }
+    var pidiendoUrl by remember { mutableStateOf(false) }
+    var url by remember { mutableStateOf("") }
+    val selector = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) scope.launch {
+            aviso = if (FondoInicio.usarArchivo(c, uri)) "Imagen guardada como fondo" else "No se pudo usar ese archivo"
+        }
+    }
+    OptionRow("Sin imagen (más ligero)", FondoInicio.modo == FondoInicio.NINGUNO) { FondoInicio.elegirModo(c, FondoInicio.NINGUNO) }
+    OptionRow("Foto aleatoria de internet", FondoInicio.modo == FondoInicio.ALEATORIO) { FondoInicio.elegirModo(c, FondoInicio.ALEATORIO) }
+    OptionRow(
+        if (FondoInicio.hayImagen(c)) "Mi imagen" else "Mi imagen (elige una abajo)",
+        FondoInicio.modo == FondoInicio.IMAGEN,
+    ) { FondoInicio.elegirModo(c, FondoInicio.IMAGEN) }
+    Row(
+        Modifier.padding(start = 10.dp, top = 6.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        RemoteChip(label = "Elegir archivo…", small = true, onClick = {
+            runCatching { selector.launch(arrayOf("image/*")) }
+                .onFailure { aviso = "Este aparato no tiene selector de archivos; usa una dirección web" }
+        })
+        RemoteChip(label = "Desde una dirección…", small = true, onClick = { pidiendoUrl = !pidiendoUrl })
+        if (FondoInicio.hayImagen(c)) {
+            RemoteChip(label = "Quitar imagen", small = true, onClick = { FondoInicio.quitar(c); aviso = "Imagen quitada" })
+        }
+    }
+    if (pidiendoUrl) {
+        BasicTextField(
+            value = url,
+            onValueChange = { url = it },
+            textStyle = AntenaType.mono.copy(color = Fosforo),
+            cursorBrush = SolidColor(Ambar),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                imeAction = androidx.compose.ui.text.input.ImeAction.Done,
+                keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+            ),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = {
+                if (url.isNotBlank()) scope.launch {
+                    aviso = "Descargando…"
+                    aviso = if (FondoInicio.usarUrl(c, url)) "Imagen guardada como fondo" else "No se pudo descargar esa imagen"
+                }
+            }),
+            modifier = Modifier
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .background(Noche)
+                .border(1.dp, Azul.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        )
+        Text(
+            "Pega la dirección de una imagen (.jpg, .png…) y pulsa Enter.",
+            style = AntenaType.meta,
+            color = FosforoTenue,
+            modifier = Modifier.padding(start = 14.dp, bottom = 6.dp),
+        )
+    }
+    aviso?.let {
+        Text(it, style = AntenaType.meta, color = Ambar, modifier = Modifier.padding(start = 14.dp, bottom = 8.dp))
+    }
+    Text(
+        "También puedes mantener OK sobre una imagen de cualquier página y elegir «Usar como fondo de inicio».",
+        style = AntenaType.meta,
+        color = FosforoTenue,
+        modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
+    )
+}
+
+/** Cuadro de búsqueda de la página de inicio: escribe y pulsa Enter para buscar con el motor elegido. */
+@Composable
+private fun BuscadorInicio(engineName: String, onSearch: (String) -> Unit) {
+    var texto by remember { mutableStateOf("") }
+    var enfocado by remember { mutableStateOf(false) }
+    val fuente = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hover by fuente.collectIsHoveredAsState()
+    val forma = RoundedCornerShape(26.dp)
+    val buscar = { if (texto.isNotBlank()) onSearch(texto.trim()) }
+    Row(
+        Modifier
+            .widthIn(max = 640.dp)
+            .fillMaxWidth()
+            .hoverable(fuente)
+            .cristal(forma, elevacion = 12.dp, opacidad = 0.8f)
+            .border(
+                if (enfocado) 1.5.dp else 1.dp,
+                if (enfocado) Ambar else if (hover) Fosforo.copy(alpha = 0.35f) else Color.Transparent,
+                forma,
+            )
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(1f)) {
+            if (texto.isEmpty()) {
+                Text(
+                    if (engineName.isBlank()) "Buscar o escribir una dirección" else "Buscar con $engineName o escribir una dirección",
+                    style = AntenaType.body,
+                    color = FosforoTenue,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            BasicTextField(
+                value = texto,
+                onValueChange = { texto = it },
+                textStyle = AntenaType.body.copy(color = Fosforo),
+                cursorBrush = SolidColor(Ambar),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Search,
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+                ),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { buscar() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onFocusChanged { enfocado = it.isFocused }
+                    .onKeyEvent { ev ->
+                        if (ev.key == Key.Enter && ev.type == KeyEventType.KeyUp) { buscar(); true } else false
+                    },
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Box(Modifier.size(28.dp).pointerInput(texto) { detectTapGestures { buscar() } }, contentAlignment = Alignment.Center) {
+            ToolIconGlyph(ToolIcon.Search, if (enfocado || hover) Ambar else FosforoTenue, size = 22.dp)
         }
     }
 }
@@ -2934,6 +3073,7 @@ private fun iconoDe(accion: AccionContexto): ToolIcon = when (accion) {
     -> ToolIcon.Copy
     AccionContexto.CompartirVinculo, AccionContexto.CompartirSeleccion -> ToolIcon.Share
     AccionContexto.GuardarVinculo, AccionContexto.GuardarImagen -> ToolIcon.Download
+    AccionContexto.UsarComoFondo -> ToolIcon.Image
     AccionContexto.BusquedaVisual, AccionContexto.BuscarSeleccion -> ToolIcon.Search
     AccionContexto.SeleccionarTexto -> ToolIcon.Text
     AccionContexto.Atras -> ToolIcon.Back

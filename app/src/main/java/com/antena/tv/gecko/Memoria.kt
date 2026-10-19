@@ -12,8 +12,9 @@ import android.content.Context
  *
  * Escalones (porcentaje de la memoria libre sobre el total):
  *  · BAJA     < 25 %  → sólo queda una pestaña viva.
- *  · CRÍTICA  < 15 %  → se sueltan todas las de fondo y no se abren más.
- *  · EXTREMA  <  9 %  → se pausa la página activa (ofrece reintentar).
+ *  · CRÍTICA  < 17 %  → se sueltan todas las de fondo y no se abren más.
+ *  · EXTREMA  < 12 %  → se recicla la página activa (se recarga limpia) antes de que el
+ *                      televisor se cuelgue; si vuelve a pasar enseguida, se pausa.
  */
 object Memoria {
     enum class Presion { NORMAL, BAJA, CRITICA, EXTREMA }
@@ -36,8 +37,8 @@ object Memoria {
         val libre = mi.availMem
         val pocaRam = am.isLowRamDevice || total <= 3L * 1024 * 1024 * 1024
         val presion = when {
-            mi.lowMemory || libre < maxOf(mi.threshold, total * 9 / 100) -> Presion.EXTREMA
-            libre < maxOf(mi.threshold * 12 / 10, total * 15 / 100) -> Presion.CRITICA
+            mi.lowMemory || libre < maxOf(mi.threshold, total * 12 / 100) -> Presion.EXTREMA
+            libre < maxOf(mi.threshold * 12 / 10, total * 17 / 100) -> Presion.CRITICA
             libre < maxOf(mi.threshold * 2, total * 25 / 100) -> Presion.BAJA
             else -> Presion.NORMAL
         }

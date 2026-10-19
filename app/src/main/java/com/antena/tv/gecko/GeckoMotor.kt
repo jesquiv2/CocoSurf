@@ -457,8 +457,13 @@ object GeckoMotor {
         val ajustes = org.mozilla.geckoview.GeckoRuntimeSettings.Builder()
             .fissionEnabled(false)
             .lowMemoryDetection(true)
+            .loginAutofillEnabled(true)
             .build()
         val rt = GeckoRuntime.create(context.applicationContext, ajustes)
+        ajustarPreferencias()
+        // Contraseñas guardadas en el aparato (cifradas): Gecko las pide y las entrega aquí.
+        com.antena.tv.browser.Contrasenas.iniciar(context)
+        rt.autocompleteStorageDelegate = com.antena.tv.browser.Contrasenas.almacen
         // Sin PromptDelegate no hay «listener» para el evento de instalación y
         // TODO install() falla con InstallException (bug encontrado en el spike):
         // el clic del usuario en «Instalar» ya es el consentimiento.
@@ -484,6 +489,33 @@ object GeckoMotor {
             )
         runtime = rt
         return rt
+    }
+
+    /**
+     * Preferencias de Firefox pensadas para un televisor de 2 GB: menos cachés en memoria,
+     * sin proceso de contenido de repuesto, sin páginas «congeladas» para el botón Atrás y
+     * sin AV1/VP9 (el televisor sólo decodifica H.264 por hardware: YouTube lo ofrece y
+     * gasta menos CPU y memoria; también evita «no se encontró vídeo con formato válido»).
+     */
+    private fun ajustarPreferencias() {
+        fun bool(n: String, v: Boolean) = runCatching {
+            org.mozilla.geckoview.GeckoPreferenceController.setGeckoPref(
+                n, v, org.mozilla.geckoview.GeckoPreferenceController.PREF_BRANCH_USER,
+            ).accept({ Log.i(TAG, "pref $n = $v") }, { e -> Log.w(TAG, "pref $n rechazada: ${e?.message}") })
+        }.onFailure { Log.w(TAG, "pref $n no aplicada: ${it.message}") }
+        fun num(n: String, v: Int) = runCatching {
+            org.mozilla.geckoview.GeckoPreferenceController.setGeckoPref(
+                n, v, org.mozilla.geckoview.GeckoPreferenceController.PREF_BRANCH_USER,
+            ).accept({ Log.i(TAG, "pref $n = $v") }, { e -> Log.w(TAG, "pref $n rechazada: ${e?.message}") })
+        }.onFailure { Log.w(TAG, "pref $n no aplicada: ${it.message}") }
+        bool("dom.ipc.processPrelaunch.enabled", false)
+        num("browser.sessionhistory.max_total_viewers", 0)
+        num("browser.cache.memory.capacity", 2048)
+        num("image.mem.surfacecache.max_size_kb", 40_960)
+        num("media.memory_cache_max_size", 16_384)
+        bool("media.av1.enabled", false)
+        bool("media.mediasource.vp9.enabled", false)
+        bool("dom.webgpu.enabled", false)
     }
 
     /** Arranca el motor si hacía falta y refresca la lista. Llamar en hilo UI. */

@@ -37,6 +37,7 @@ enum class AccionContexto {
     // Imagen
     GuardarImagen,
     CopiarImagen,
+    UsarComoFondo,
     CopiarVinculoImagen,
     BusquedaVisual,
     // Texto seleccionado
@@ -81,6 +82,7 @@ fun filasContexto(t: ContextTarget): List<FilaContexto> {
         if (img != null) {
             add(FilaContexto("Imagen", "Guardar imagen", AccionContexto.GuardarImagen))
             add(FilaContexto(null, "Copiar imagen", AccionContexto.CopiarImagen))
+            add(FilaContexto(null, "Usar como fondo de inicio", AccionContexto.UsarComoFondo))
             add(FilaContexto(null, "Copiar vínculo de la imagen", AccionContexto.CopiarVinculoImagen))
             add(FilaContexto(null, "Búsqueda visual de la imagen", AccionContexto.BusquedaVisual))
         }

@@ -34,7 +34,10 @@ class WebTab(
      * (afirma «Must use an unopened GeckoSession instance» y crashea la app si
      * ya está abierta). En ese caso la vista se acopla al abrirse.
      */
-    sesion: GeckoSession = GeckoSession(),
+    // Al pasar a otra pestaña, el vídeo/audio de la que se deja se detiene solo.
+    sesion: GeckoSession = GeckoSession(
+        GeckoSessionSettings.Builder().suspendMediaWhenInactive(true).build(),
+    ),
     private val laAbreGecko: Boolean = false,
 ) {
     val view: GeckoView = GeckoView(context)
@@ -67,6 +70,11 @@ class WebTab(
     var onPantallaCompleta: (Boolean) -> Unit = {}
     /** El proceso de la página cayó (falta de memoria o fallo): hay que recrearla. */
     var onProcesoCaido: (motivo: String) -> Unit = {}
+
+    /** Gecko ofrece guardar una contraseña (tras iniciar sesión). */
+    var onClaveGuardar: (PeticionGuardar) -> Unit = { it.responder(false) }
+    /** Gecko ofrece rellenar con una de las contraseñas guardadas del sitio. */
+    var onClaveElegir: (PeticionElegir) -> Unit = { it.responder(null) }
 
     /** Última URL conocida de la sesión (onPageStop no la trae). */
     var url = ""
@@ -278,6 +286,42 @@ class WebTab(
             override fun onPageStop(session: GeckoSession, success: Boolean) {
                 onProgress(if (success) 100 else 0)
                 onLoaded(url, success)
+            }
+        }
+
+        // Contraseñas: guardar al iniciar sesión y sugerir las guardadas al enfocar un campo.
+        s.promptDelegate = object : GeckoSession.PromptDelegate {
+            override fun onLoginSave(
+                session: GeckoSession,
+                request: GeckoSession.PromptDelegate.AutocompleteRequest<org.mozilla.geckoview.Autocomplete.LoginSaveOption>,
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val opcion = request.options.firstOrNull() ?: return GeckoResult.fromValue(request.dismiss())
+                val previa = Contrasenas.existente(opcion.value)
+                // Ya guardada y sin cambios: nada que preguntar.
+                if (previa != null && previa.clave == (opcion.value.password ?: "")) {
+                    return GeckoResult.fromValue(request.dismiss())
+                }
+                val res = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                onClaveGuardar(
+                    PeticionGuardar(opcion.value, previa != null) { si ->
+                        res.complete(if (si) request.confirm(opcion) else request.dismiss())
+                    },
+                )
+                return res
+            }
+
+            override fun onLoginSelect(
+                session: GeckoSession,
+                request: GeckoSession.PromptDelegate.AutocompleteRequest<org.mozilla.geckoview.Autocomplete.LoginSelectOption>,
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val res = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                onClaveElegir(
+                    PeticionElegir(request.options.map { it.value }) { elegida ->
+                        val op = elegida?.let { e -> request.options.firstOrNull { it.value.guid == e.guid } }
+                        res.complete(if (op != null) request.confirm(op) else request.dismiss())
+                    },
+                )
+                return res
             }
         }
 

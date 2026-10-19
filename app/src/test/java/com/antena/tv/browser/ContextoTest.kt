@@ -66,12 +66,13 @@ class ContextoTest {
     }
 
     @Test
-    fun `la imagen conserva sus cuatro filas de siempre`() {
+    fun `la imagen conserva sus filas y suma «usar como fondo»`() {
         val filas = filasContexto(ContextTarget(img = "https://x.test/i.png"))
         assertEquals(
             listOf(
                 "Guardar imagen",
                 "Copiar imagen",
+                "Usar como fondo de inicio",
                 "Copiar vínculo de la imagen",
                 "Búsqueda visual de la imagen",
             ),
@@ -83,7 +84,7 @@ class ContextoTest {
     @Test
     fun `imagen y enlace juntos muestran las dos secciones`() {
         val filas = filasContexto(ContextTarget(link = "https://x.test/a", img = "https://x.test/i.png"))
-        assertEquals(6 + 4, filas.size)
+        assertEquals(6 + 5, filas.size)
         assertEquals("Enlace", filas.first().seccion)
         assertTrue(filas.any { it.seccion == "Imagen" })
     }

@@ -160,6 +160,7 @@ private const val INTERNA_HISTORIAL = "cocosurf://historial"
 private const val INTERNA_DESCARGAS = "cocosurf://descargas"
 private const val INTERNA_CONFIG = "cocosurf://config"
 private const val INTERNA_ACERCA = "cocosurf://acerca"
+private const val INTERNA_CLAVES = "cocosurf://claves"
 
 /** Título de una vista interna; `null` cuando la URL es de una página web. */
 private fun tituloInterna(url: String): String? = when (url) {
@@ -168,6 +169,7 @@ private fun tituloInterna(url: String): String? = when (url) {
     INTERNA_DESCARGAS -> "Descargas"
     INTERNA_CONFIG -> "Configuración"
     INTERNA_ACERCA -> "Acerca de"
+    INTERNA_CLAVES -> "Contraseñas"
     else -> null
 }
 
@@ -269,6 +271,9 @@ fun BrowserScreen() {
     var recarga by remember { mutableIntStateOf(0) }
     // Pestañas pausadas por memoria extrema: muestran un aviso con «Reintentar».
     var pausadas by remember { mutableStateOf(setOf<Int>()) }
+    // Contraseñas: lo que Gecko pregunta (guardar) u ofrece (rellenar) en la página activa.
+    var claveGuardar by remember { mutableStateOf<PeticionGuardar?>(null) }
+    var claveElegir by remember { mutableStateOf<PeticionElegir?>(null) }
     // Últimas lecturas de recursos (gráficos del monitor).
     val muestras = remember { androidx.compose.runtime.mutableStateListOf<com.antena.tv.gecko.Recursos.Muestra>() }
     // ¿La página está desplazada? (para el botón «ir arriba» y el ↑ al tope).
@@ -393,6 +398,14 @@ fun BrowserScreen() {
             }
             if (id == activeId) GeckoMotor.activarSesion(w.session)
             w.onIntercept = { u -> handleLink(u) }
+            w.onClaveGuardar = { p ->
+                claveGuardar?.responder?.invoke(false)
+                claveGuardar = PeticionGuardar(p.entry, p.actualiza) { si -> claveGuardar = null; p.responder(si) }
+            }
+            w.onClaveElegir = { p ->
+                claveElegir?.responder?.invoke(null)
+                claveElegir = PeticionElegir(p.opciones) { e -> claveElegir = null; p.responder(e) }
+            }
             // Fase 5 · mantener OK / pulsación larga → menú contextual de la página.
             w.onContext = { link, img ->
                 if (id == activeId) {
@@ -586,6 +599,23 @@ fun BrowserScreen() {
         pausadas = pausadas + id
         recarga++
         toast("Memoria al límite: página pausada para proteger el aparato")
+    }
+
+    var ultimoReciclaje = 0L
+
+    /**
+     * Reciclar: se suelta el motor de la página activa y se vuelve a cargar limpia.
+     * Páginas de desplazamiento infinito (Facebook, TikTok) acumulan cientos de MB;
+     * recargarlas a tiempo evita que el televisor se cuelgue.
+     */
+    fun reciclarActiva(motivo: String) {
+        val id = activeId
+        ultimoReciclaje = System.currentTimeMillis()
+        Bitacora.add(LogKind.ERROR, "Página reciclada ($motivo) · ${activeTab.url}")
+        destroy(id)
+        descartadas += id
+        recarga++
+        toast("Poca memoria: la página se recargó para evitar que el televisor se cuelgue")
     }
 
     /** Antes de abrir otra página en una pestaña nueva: que quepa. */
@@ -999,8 +1029,9 @@ fun BrowserScreen() {
     LaunchedEffect(Unit) {
         var anterior = Memoria.Presion.NORMAL
         var extremas = 0
+        var criticas = 0
         while (true) {
-            delay(3_000)
+            delay(2_000)
             val e = Memoria.leer(context)
             val tope = Memoria.maxVivas(context)
             if (e.presion != anterior) {
@@ -1016,28 +1047,44 @@ fun BrowserScreen() {
                 Memoria.Presion.EXTREMA -> {
                     quitadas = descartarFondo(1, "memoria extrema")
                     extremas++
-                    // Dos lecturas seguidas en el límite: se pausa la propia página para que
-                    // el televisor no se cuelgue (se puede reintentar).
+                    // Dos lecturas seguidas en el límite: la página activa se recicla (se recarga
+                    // limpia). Si ya se reciclaba hace poco y vuelve a pasar, se pausa del todo.
                     if (extremas >= 2 && activeTab.url.startsWith("http") && activeId !in pausadas) {
-                        Bitacora.add(
-                            LogKind.ERROR,
-                            "Memoria extrema (${e.libreMb} MB libres): página pausada para proteger el aparato · ${activeTab.url}",
-                        )
-                        pausarActiva()
+                        if (System.currentTimeMillis() - ultimoReciclaje < 90_000) {
+                            Bitacora.add(
+                                LogKind.ERROR,
+                                "Memoria extrema (${e.libreMb} MB libres): página pausada para proteger el aparato · ${activeTab.url}",
+                            )
+                            pausarActiva()
+                        } else {
+                            reciclarActiva("memoria extrema, ${e.libreMb} MB libres")
+                        }
                         extremas = 0
+                        criticas = 0
                     }
                 }
                 Memoria.Presion.CRITICA -> {
                     quitadas = descartarFondo(1, "memoria crítica")
                     extremas = 0
+                    // Crítica sostenida con una página muy grande: se recicla antes de llegar al límite.
+                    criticas++
+                    val pesada = (muestras.lastOrNull()?.paginasMb ?: 0L) >= 380L
+                    if (criticas >= 4 && pesada && activeTab.url.startsWith("http") &&
+                        activeId !in pausadas && System.currentTimeMillis() - ultimoReciclaje > 90_000
+                    ) {
+                        reciclarActiva("memoria crítica sostenida, página de ${muestras.last().paginasMb} MB")
+                        criticas = 0
+                    }
                 }
                 Memoria.Presion.BAJA -> {
                     quitadas = descartarFondo(minOf(tope, 2), "memoria baja")
                     extremas = 0
+                    criticas = 0
                 }
                 Memoria.Presion.NORMAL -> {
                     quitadas = descartarFondo(tope, "límite de pestañas")
                     extremas = 0
+                    criticas = 0
                 }
             }
             if (quitadas > 0 && e.presion != Memoria.Presion.NORMAL) {
@@ -2084,7 +2131,9 @@ fun BrowserScreen() {
                             INTERNA_ACERCA -> AcercaPage(
                                 version = version ?: "—",
                                 onClose = { closeTab(activeId) },
+                                onAbrir = { u -> abrirDesdeVistaInterna(u) },
                             )
+                            INTERNA_CLAVES -> ClavesPage(onBack = { closeTab(activeId) })
                             INTERNA_CONFIG -> ConfiguracionPage(
                                 engines = engines,
                                 engineId = engineId,
@@ -2127,6 +2176,8 @@ fun BrowserScreen() {
                                     }
                                 },
                                 onAdd = { overlay = Overlay.Star(null) },
+                                engineName = engine.name,
+                                onSearch = { q -> submit(q) },
                             )
                         }
                     }
@@ -2152,6 +2203,9 @@ fun BrowserScreen() {
                                         progress = 1
                                         w.load(activeTab.url)
                                     }
+                                    // Tras caer el motor la vista vieja puede seguir pegada a su
+                                    // padre: se despega antes de entregarla (era un cierre de la app).
+                                    (w.view.parent as? android.view.ViewGroup)?.removeView(w.view)
                                     w.view
                                 },
                                 update = { gv ->
@@ -2284,6 +2338,7 @@ fun BrowserScreen() {
                         },
                         onConfig = { abrirInterna(INTERNA_CONFIG) },
                         onAcerca = { abrirInterna(INTERNA_ACERCA) },
+                        onClaves = { abrirInterna(INTERNA_CLAVES) },
                         onSystem = { overlay = Overlay.System },
                         onDiagnostics = { overlay = Overlay.Diagnostics },
                         onBitacora = {
@@ -2644,6 +2699,17 @@ fun BrowserScreen() {
                                 }
                                 closeCtx()
                             }
+                            AccionContexto.UsarComoFondo -> {
+                                val u = target.img
+                                closeCtx()
+                                if (u != null) {
+                                    scope.launch {
+                                        toast("Descargando imagen…")
+                                        val ok = FondoInicio.usarUrl(context, u)
+                                        toast(if (ok) "Listo: es el fondo de la página de inicio" else "No se pudo usar esa imagen")
+                                    }
+                                }
+                            }
                             AccionContexto.CopiarImagen -> {
                                 val u = target.img
                                 closeCtx()
@@ -2744,6 +2810,10 @@ fun BrowserScreen() {
                 )
             }
         }
+
+        // Contraseñas: ofrecer guardar o elegir (tarjeta bajo la barra, arriba al centro).
+        claveGuardar?.let { ClaveGuardarCard(it, Modifier.align(Alignment.TopCenter).padding(top = 76.dp).zIndex(25f)) }
+        claveElegir?.let { ClaveElegirCard(it, Modifier.align(Alignment.TopCenter).padding(top = 76.dp).zIndex(25f)) }
 
         // Avisos del motor (instalar/quitar complementos): visibles desde cualquier pantalla.
         AvisoFlotante(
@@ -3097,6 +3167,7 @@ private fun TabIcono(url: String, active: Boolean, compact: Boolean) {
             INTERNA_DESCARGAS -> ToolIcon.Download
             INTERNA_CONFIG -> ToolIcon.Gear
             INTERNA_ACERCA -> ToolIcon.Info
+            INTERNA_CLAVES -> ToolIcon.Lock
             else -> ToolIcon.Home
         }
         ToolIconGlyph(kind = icono, color = if (active) Ambar else Azul, size = lado)
