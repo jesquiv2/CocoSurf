@@ -511,30 +511,16 @@ object Puntero {
         }
     }
 
+    /**
+     * La pantalla enlaza esto con la página activa: recibe la posición del cursor en la
+     * ventana y cuánto se quiere desplazar, y entrega la rueda directo al motor (sin pasar por
+     * las asas ni otras piezas de la interfaz que están encima y se la tragarían).
+     */
+    var ruedaWeb: (x: Float, y: Float, dx: Float, dy: Float) -> Boolean = { _, _, _, _ -> false }
+
     /** Una vuelta de rueda en el cursor (px de pantalla que se quieren desplazar). */
-    private fun rueda(decor: android.view.View, dx: Float, dy: Float): Boolean = runCatching {
-        val ahora = SystemClock.uptimeMillis()
-        val props = MotionEvent.PointerProperties().apply {
-            id = 0
-            toolType = MotionEvent.TOOL_TYPE_MOUSE
-        }
-        val coords = MotionEvent.PointerCoords().apply {
-            x = pos.x
-            y = pos.y
-            // Positivo = hacia arriba/izquierda; una unidad = una «muesca» (el factor de Android).
-            val muesca = android.view.ViewConfiguration.get(decor.context).scaledVerticalScrollFactor
-                .coerceAtLeast(16f)
-            setAxisValue(MotionEvent.AXIS_VSCROLL, -dy / muesca)
-            setAxisValue(MotionEvent.AXIS_HSCROLL, -dx / muesca)
-        }
-        val e = MotionEvent.obtain(
-            ahora, ahora, MotionEvent.ACTION_SCROLL, 1, arrayOf(props), arrayOf(coords),
-            0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0,
-        )
-        val ok = decor.dispatchGenericMotionEvent(e)
-        e.recycle()
-        ok
-    }.getOrDefault(false)
+    private fun rueda(@Suppress("UNUSED_PARAMETER") decor: android.view.View, dx: Float, dy: Float): Boolean =
+        runCatching { ruedaWeb(pos.x, pos.y, dx, dy) }.getOrDefault(false)
 
     /**
      * «Pasar el ratón» por encima de la interfaz propia (barras, menús, paneles)

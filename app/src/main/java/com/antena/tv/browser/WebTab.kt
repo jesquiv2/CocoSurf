@@ -2,6 +2,8 @@ package com.antena.tv.browser
 
 import android.content.Context
 import android.view.KeyEvent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import com.antena.tv.gecko.GeckoMotor
 import com.antena.tv.log.Bitacora
 import com.antena.tv.log.LogKind
@@ -75,6 +77,10 @@ class WebTab(
     var onClaveGuardar: (PeticionGuardar) -> Unit = { it.responder(false) }
     /** Gecko ofrece rellenar con una de las contraseñas guardadas del sitio. */
     var onClaveElegir: (PeticionElegir) -> Unit = { it.responder(null) }
+
+    /** ¿Hay un vídeo o audio sonando en esta pestaña? (para darle prioridad). */
+    var reproduciendo by androidx.compose.runtime.mutableStateOf(false)
+        private set
 
     /** Última URL conocida de la sesión (onPageStop no la trae). */
     var url = ""
@@ -325,6 +331,24 @@ class WebTab(
             }
         }
 
+        s.mediaSessionDelegate = object : org.mozilla.geckoview.MediaSession.Delegate {
+            override fun onPlay(session: GeckoSession, mediaSession: org.mozilla.geckoview.MediaSession) {
+                reproduciendo = true
+            }
+
+            override fun onPause(session: GeckoSession, mediaSession: org.mozilla.geckoview.MediaSession) {
+                reproduciendo = false
+            }
+
+            override fun onStop(session: GeckoSession, mediaSession: org.mozilla.geckoview.MediaSession) {
+                reproduciendo = false
+            }
+
+            override fun onDeactivated(session: GeckoSession, mediaSession: org.mozilla.geckoview.MediaSession) {
+                reproduciendo = false
+            }
+        }
+
         s.scrollDelegate = object : GeckoSession.ScrollDelegate {
             override fun onScrollChanged(session: GeckoSession, x: Int, y: Int) {
                 scrollY = y
@@ -402,6 +426,47 @@ class WebTab(
             // Se llama cada ~16 ms: salto inmediato por fotograma = deslizamiento fluido.
             org.mozilla.geckoview.PanZoomController.SCROLL_BEHAVIOR_AUTO,
         )
+    }
+
+    /**
+     * Rueda del ratón sobre la página en el punto (x, y) de la ventana. Gecko mueve el elemento
+     * que haya debajo (una lista interna, un panel…) y, si no puede más, la página entera.
+     */
+    private var acumX = 0f
+    private var acumY = 0f
+
+    fun rueda(x: Float, y: Float, dx: Float, dy: Float): Boolean {
+        val muesca = android.view.ViewConfiguration.get(view.context).scaledVerticalScrollFactor.coerceAtLeast(16f)
+        // Gecko ignora vueltas de rueda muy pequeñas: se acumula y se manda en muescas enteras.
+        acumX += dx
+        acumY += dy
+        val nx = (acumX / muesca).toInt()
+        val ny = (acumY / muesca).toInt()
+        if (nx == 0 && ny == 0) return true
+        acumX -= nx * muesca
+        acumY -= ny * muesca
+        val loc = IntArray(2)
+        view.getLocationInWindow(loc)
+        val ahora = android.os.SystemClock.uptimeMillis()
+        val props = android.view.MotionEvent.PointerProperties().apply {
+            id = 0
+            toolType = android.view.MotionEvent.TOOL_TYPE_MOUSE
+        }
+        val coords = android.view.MotionEvent.PointerCoords().apply {
+            // El cursor pegado al borde puede quedar fuera de la vista (barra de estado): se mete dentro.
+            this.x = (x - loc[0]).coerceIn(1f, (view.width - 1).toFloat().coerceAtLeast(1f))
+            this.y = (y - loc[1]).coerceIn(1f, (view.height - 1).toFloat().coerceAtLeast(1f))
+            // Positivo = hacia arriba/izquierda.
+            setAxisValue(android.view.MotionEvent.AXIS_VSCROLL, -ny.toFloat())
+            setAxisValue(android.view.MotionEvent.AXIS_HSCROLL, -nx.toFloat())
+        }
+        val e = android.view.MotionEvent.obtain(
+            ahora, ahora, android.view.MotionEvent.ACTION_SCROLL, 1, arrayOf(props), arrayOf(coords),
+            0, 0, 1f, 1f, 0, 0, android.view.InputDevice.SOURCE_MOUSE, 0,
+        )
+        val ok = view.dispatchGenericMotionEvent(e)
+        e.recycle()
+        return ok
     }
 
     /** Botón flotante «ir arriba»: Gecko no expone scrollTo, se simulan ↑. */

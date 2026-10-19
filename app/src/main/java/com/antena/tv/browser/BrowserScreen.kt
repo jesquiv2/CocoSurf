@@ -52,6 +52,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -1098,11 +1099,13 @@ fun BrowserScreen() {
     LaunchedEffect(MonitorConfig.visible) {
         if (MonitorConfig.visible) com.antena.tv.gecko.FpsInterfaz.encender() else com.antena.tv.gecko.FpsInterfaz.apagar()
     }
+    val enVideoActual by rememberUpdatedState(pantallaCompleta || webTabs[activeId]?.reproduciendo == true)
     LaunchedEffect(Unit) {
         var n = 0
         var libreAntes = -1L
         while (true) {
             val visible = MonitorConfig.visible
+            val enVideo = enVideoActual
             val vivas = webTabs.size
             val url = activeTab.url
             val m = withContext(Dispatchers.Default) {
@@ -1123,7 +1126,23 @@ fun BrowserScreen() {
                 }
                 libreAntes = m.libreMb
             }
-            delay(if (visible) 1_000L else 15_000L)
+            delay(if (visible) 1_000L else if (enVideo) 40_000L else 15_000L)
+        }
+    }
+    // Prioridad al vídeo: mientras suena (o va en pantalla completa) el motor de esa pestaña pasa a
+    // prioridad alta y la app deja de hacer trabajo de fondo que no hace falta.
+    val modoVideo = pantallaCompleta || webTabs[activeId]?.reproduciendo == true
+    LaunchedEffect(modoVideo, activeId, recarga) {
+        webTabs.forEach { (id, w) ->
+            runCatching {
+                w.session.setPriorityHint(
+                    if (modoVideo && id == activeId) {
+                        org.mozilla.geckoview.GeckoSession.PRIORITY_HIGH
+                    } else {
+                        org.mozilla.geckoview.GeckoSession.PRIORITY_DEFAULT
+                    },
+                )
+            }
         }
     }
     // Avisos de Android («recorta»): lo mismo, sin esperar al vigilante.
@@ -1591,6 +1610,7 @@ fun BrowserScreen() {
     }
     DisposableEffect(Unit) {
         Puntero.desplazar = { dx, dy -> webTabs[activeId]?.desplazar(dx, dy) }
+        Puntero.ruedaWeb = { x, y, dx, dy -> webTabs[activeId]?.rueda(x, y, dx, dy) ?: false }
         // ↑ contra el borde de arriba con la página ya arriba: baja la barra.
         // Mantener OK sobre una zona vacía de la página: menú de la página. Sobre un
         // enlace, imagen o texto, Gecko ya abrió el suyo a los ~0,5 s y no se toca.
@@ -1624,6 +1644,7 @@ fun BrowserScreen() {
         onDispose {
             Puntero.activo = false
             Puntero.desplazar = { _, _ -> }
+            Puntero.ruedaWeb = { _, _, _, _ -> false }
             Puntero.alMenu = { false }
             Puntero.alModoScroll = {}
             Puntero.alMantener = {}
@@ -2248,7 +2269,7 @@ fun BrowserScreen() {
                 val cercaAbajo = altoPx > 0f && yRel > altoPx - 96f * densidadPx
                 val verlo = webActivo && !pantallaCompleta
                 ManijaBarras(
-                    visible = verlo && !chromeVisible && (!usoCursor || cercaArriba),
+                    visible = verlo && !chromeVisible && (!usoCursor || cercaArriba) && Puntero.indicador == 0 && !Puntero.modoScroll,
                     onClick = {
                         chromeOpen = true
                         composeView.postDelayed({ barFr.requestFocus() }, 350)
@@ -2257,7 +2278,7 @@ fun BrowserScreen() {
                 )
                 // Abajo: una pastilla que sube al acercar el cursor; tocarla baja una pantalla.
                 ManijaAbajo(
-                    visible = verlo && usoCursor && cercaAbajo && overlay == null,
+                    visible = verlo && usoCursor && cercaAbajo && overlay == null && Puntero.indicador == 0 && !Puntero.modoScroll,
                     onClick = { webTabs[activeId]?.desplazar(0f, altoPx * 0.85f) },
                     modifier = Modifier.align(Alignment.BottomCenter).zIndex(11f),
                 )

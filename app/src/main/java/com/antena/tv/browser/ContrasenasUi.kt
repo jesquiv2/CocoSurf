@@ -107,6 +107,19 @@ fun ClavesPage(onBack: () -> Unit, backLabel: String = "✕ Cerrar") {
     var confirmarTodas by remember { mutableStateOf(false) }
     val fecha = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
     val estado = rememberScrollState()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var aviso by remember { mutableStateOf<String?>(null) }
+    val selector = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            aviso = runCatching {
+                val texto = ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }.orEmpty()
+                val n = Contrasenas.importarCsv(texto)
+                if (n > 0) "Se importaron $n contraseñas. Borra el archivo CSV: no está cifrado." else "No encontré contraseñas en ese archivo."
+            }.getOrElse { "No se pudo leer el archivo." }
+        }
+    }
 
     Column(Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 30.dp)) {
         Column(Modifier.widthIn(max = 820.dp).fillMaxWidth().align(Alignment.CenterHorizontally)) {
@@ -123,12 +136,19 @@ fun ClavesPage(onBack: () -> Unit, backLabel: String = "✕ Cerrar") {
                     )
                     Spacer(Modifier.width(10.dp))
                 }
+                RemoteChip(label = "Importar CSV…", small = true, onClick = {
+                    runCatching { selector.launch(arrayOf("text/*", "application/vnd.ms-excel", "application/octet-stream")) }
+                        .onFailure { aviso = "Este aparato no tiene selector de archivos." }
+                })
+                Spacer(Modifier.width(10.dp))
                 RemoteChip(label = backLabel, small = true, onClick = onBack)
             }
+            aviso?.let { Text(it, style = AntenaType.meta, color = Ambar, modifier = Modifier.padding(top = 6.dp)) }
             Spacer(Modifier.height(6.dp))
             Text(
                 "Se guardan en este aparato, cifradas. Cuando inicies sesión en un sitio, Coco Surf " +
-                    "te ofrecerá guardarla y, al volver, te la sugerirá.",
+                    "te ofrecerá guardarla y, al volver, te la sugerirá. Para traer las de Chrome, Edge o Google: " +
+                    "expórtalas a un archivo CSV (Configuración → Contraseñas → Exportar) e impórtalo aquí.",
                 style = AntenaType.meta,
                 color = FosforoTenue,
             )

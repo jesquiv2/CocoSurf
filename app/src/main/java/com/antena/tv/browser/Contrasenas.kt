@@ -163,6 +163,62 @@ object Contrasenas {
         persistir()
     }
 
+    /**
+     * Importa un CSV exportado de Chrome, Edge, Firefox o Bitwarden (columnas url/usuario/clave).
+     * Devuelve cuántas contraseñas nuevas o actualizadas entraron.
+     */
+    fun importarCsv(texto: String): Int {
+        val filas = parseCsv(texto)
+        if (filas.size < 2) return 0
+        val cab = filas[0].map { it.trim().lowercase().removePrefix("\uFEFF") }
+        fun col(vararg n: String) = cab.indexOfFirst { it in n }
+        val iUrl = col("url", "login_uri", "origin", "website")
+        val iUser = col("username", "login_username", "user", "usuario")
+        val iPass = col("password", "login_password", "contraseña", "clave")
+        if (iUrl < 0 || iPass < 0) return 0
+        var n = 0
+        for (f in filas.drop(1)) {
+            val url = f.getOrNull(iUrl)?.trim().orEmpty()
+            val pass = f.getOrNull(iPass).orEmpty()
+            if (url.isBlank() || pass.isEmpty()) continue
+            val m = Regex("^([a-zA-Z][a-zA-Z0-9+.-]*://[^/?#]+)").find(url)
+                ?: Regex("^([^/?#]+)").find(url)?.let { return@let null }
+            val origen = m?.groupValues?.get(1) ?: "https://" + url.substringBefore('/')
+            val e = Autocomplete.LoginEntry.Builder().origin(origen).formActionOrigin(origen)
+                .username(f.getOrNull(iUser).orEmpty().trim()).password(pass).build()
+            guardar(e)
+            n++
+        }
+        return n
+    }
+
+    /** Lector CSV mínimo (comillas dobles, comas y saltos de línea dentro de comillas). */
+    private fun parseCsv(t: String): List<List<String>> {
+        val filas = mutableListOf<List<String>>()
+        var fila = mutableListOf<String>()
+        val sb = StringBuilder()
+        var comillas = false
+        var i = 0
+        while (i < t.length) {
+            val ch = t[i]
+            when {
+                comillas && ch == '"' && t.getOrNull(i + 1) == '"' -> { sb.append('"'); i++ }
+                ch == '"' -> comillas = !comillas
+                !comillas && ch == ',' -> { fila.add(sb.toString()); sb.clear() }
+                !comillas && (ch == '\n' || ch == '\r') -> {
+                    if (ch == '\r' && t.getOrNull(i + 1) == '\n') i++
+                    fila.add(sb.toString()); sb.clear()
+                    if (fila.any { it.isNotEmpty() }) filas.add(fila)
+                    fila = mutableListOf()
+                }
+                else -> sb.append(ch)
+            }
+            i++
+        }
+        if (sb.isNotEmpty() || fila.isNotEmpty()) { fila.add(sb.toString()); if (fila.any { it.isNotEmpty() }) filas.add(fila) }
+        return filas
+    }
+
     fun aEntry(k: Clave): Autocomplete.LoginEntry = Autocomplete.LoginEntry.Builder()
         .guid(k.guid).origin(k.origen).formActionOrigin(k.formOrigen).httpRealm(k.realm)
         .username(k.usuario).password(k.clave).build()
