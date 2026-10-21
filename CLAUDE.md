@@ -1,7 +1,7 @@
 # Coco Surf — reglas del proyecto
 
 ## Versionado (obligatorio)
-- Versión actual: **1.1.0** (`versionName`/`versionCode` en `app/build.gradle.kts`).
+- Versión actual: **1.1.1** (`versionName`/`versionCode` en `app/build.gradle.kts`).
 - Cada cambio que se entregue al usuario sube la versión **antes de compilar**:
   - correcciones pequeñas → 1.0.x (patch),
   - funciones nuevas → 1.x.0 (minor),

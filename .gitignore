@@ -74,3 +74,32 @@ artifacts/
 
 # Free buff (whatever this is)
 .freebuff/
+# ── Añadido en v1.1.0: lo que no debe subir a GitHub ──
+# Salidas de compilación y cachés
+.kotlin/
+**/build/
+captures/
+
+# Herramientas locales del asistente y memoria de sesión
+.claude/
+.remember/
+graft/
+.freebuff/
+
+# Capturas, pruebas y borradores sueltos en la raíz
+/*.png
+/*.jpg
+/visor.html
+/api.txt
+/opencode.json
+/test/
+/ComplementosPage.kt
+
+# Registros y volcados
+*.log
+hs_err_pid*
+*.hprof
+
+# APK en cualquier parte (se entregan aparte, pesan ~300 MB)
+*.apk
+*.aab
