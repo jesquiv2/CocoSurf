@@ -44,6 +44,8 @@ object Recursos {
         val termico: Int,
         val vivas: Int,
         val url: String,
+        /** Reparto de la RAM de todo el aparato (null si no se pudo leer). */
+        val sis: MemoriaSistema.Desglose? = null,
     )
 
     // ── Contadores del muestreo anterior ──
@@ -161,6 +163,7 @@ object Recursos {
             termico = termico,
             vivas = vivas,
             url = url,
+            sis = MemoriaSistema.leer(),
         )
     }
 

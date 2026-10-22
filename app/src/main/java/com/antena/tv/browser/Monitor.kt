@@ -65,6 +65,11 @@ val METRICAS_MONITOR = listOf(
     MetricaMonitor("cpuapp", "CPU app", NARANJA, { it.cpuApp }, { 100f }) { m ->
         m.cpuApp?.let { "${it.toInt()} %" } ?: "—"
     },
+    // RAM de todo el aparato (no sólo la de Coco Surf).
+    MetricaMonitor("sis_apps", "Apps (todas)", AZUL, { it.sis?.appsMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.appsMb} MB" } ?: "—" },
+    MetricaMonitor("sis_cache", "Caché arch.", VERDE, { it.sis?.cacheMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.cacheMb} MB" } ?: "—" },
+    MetricaMonitor("sis_kernel", "Kernel", MORADO, { it.sis?.kernelMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.kernelMb} MB" } ?: "—" },
+    MetricaMonitor("sis_drv", "Vídeo/gráf.", ROJO, { it.sis?.sinContabilizarMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.sinContabilizarMb} MB" } ?: "—" },
     MetricaMonitor("red", "Red ↓", VERDE, { it.redKbs }) { "${it.redKbs.toInt()} KB/s" },
     MetricaMonitor("fps", "FPS UI", Color.White, { it.fps.toFloat() }, { 60f }) { "${it.fps}" },
     MetricaMonitor("termico", "Térmico", ROJO) { m ->

@@ -1039,7 +1039,7 @@ fun BrowserScreen() {
                 Bitacora.add(
                     if (e.presion >= Memoria.Presion.CRITICA) LogKind.ERROR else LogKind.SISTEMA,
                     "Memoria ${Memoria.etiqueta(e.presion).lowercase()}: ${e.libreMb} MB libres de ${e.totalMb} MB " +
-                        "(reserva ${e.reservaMb} MB) · pestañas vivas ${webTabs.size}/$tope",
+                        "(reserva ${e.reservaMb} MB) · pestañas vivas ${webTabs.size}/$tope · " + com.antena.tv.gecko.MemoriaSistema.resumen(),
                 )
                 anterior = e.presion
             }
@@ -1103,6 +1103,7 @@ fun BrowserScreen() {
     LaunchedEffect(Unit) {
         var n = 0
         var libreAntes = -1L
+        var guardadas = 0
         while (true) {
             val visible = MonitorConfig.visible
             val enVideo = enVideoActual
@@ -1125,6 +1126,9 @@ fun BrowserScreen() {
                     )
                 }
                 libreAntes = m.libreMb
+                // Cada ~5 minutos queda en la Bitácora el reparto de la RAM del aparato (tendencia).
+                guardadas++
+                if (guardadas % 20 == 1) Bitacora.add(LogKind.SISTEMA, com.antena.tv.gecko.MemoriaSistema.resumen())
             }
             delay(if (visible) 1_000L else if (enVideo) 40_000L else 15_000L)
         }

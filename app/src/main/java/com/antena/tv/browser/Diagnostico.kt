@@ -29,6 +29,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.antena.tv.gecko.Memoria
+import com.antena.tv.gecko.MemoriaSistema
+import com.antena.tv.ui.Azul
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.antena.tv.ui.Alerta
 import com.antena.tv.ui.Ambar
 import com.antena.tv.ui.AntenaType
@@ -122,6 +130,41 @@ fun DiagnosticoPage(
                 }
             }
 
+            // ── RAM de todo el aparato ──
+            val sis by produceState<MemoriaSistema.Desglose?>(null) {
+                while (true) {
+                    value = withContext(Dispatchers.IO) { MemoriaSistema.leer() }
+                    delay(2000)
+                }
+            }
+            sis?.let { d -> SeccionAjustes("Dónde está la RAM del televisor") { RepartoRam(d) } }
+
+            // ── Procesos de Coco Surf (los de las demás apps no se pueden leer desde dentro) ──
+            val propios by produceState(emptyList<com.antena.tv.gecko.Recursos.Proceso>()) {
+                while (true) {
+                    value = withContext(Dispatchers.Default) { com.antena.tv.gecko.Recursos.procesos(contexto) }
+                    delay(3000)
+                }
+            }
+            SeccionAjustes("Procesos de Coco Surf") {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+                    propios.sortedByDescending { it.mb }.forEach { pr ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(pr.etiqueta, style = AntenaType.body, color = FosforoTenue)
+                            Text("${pr.mb} MB", style = AntenaType.body, color = Fosforo)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "Para ver quién consume en las DEMÁS apps y en qué momento se dispara, Android sólo lo " +
+                            "permite desde un PC: usa herramientas/memoria-tv.ps1 (viene en el repositorio) con " +
+                            "el televisor conectado por adb. Guarda un CSV con cada proceso cada pocos segundos.",
+                        style = AntenaType.meta,
+                        color = FosforoTenue,
+                    )
+                }
+            }
+
             SeccionAjustes("Pestañas") {
                 FilaDato("Con motor encendido", "${pest.vivas} de máximo $tope")
                 Separador(Modifier.padding(horizontal = 14.dp))
@@ -170,5 +213,42 @@ private fun FilaDato(etiqueta: String, valor: String) {
     ) {
         Text(etiqueta, style = AntenaType.body, color = FosforoTenue, modifier = Modifier.weight(1f))
         Text(valor, style = AntenaType.body, color = Fosforo)
+    }
+}
+
+
+/** Barra apilada del reparto de la RAM y su leyenda. */
+@Composable
+private fun RepartoRam(d: MemoriaSistema.Desglose) {
+    val partes = listOf(
+        Triple("Libre", d.libreMb, Escudo),
+        Triple("Caché de archivos (se suelta sola)", d.cacheMb, FosforoTenue),
+        Triple("Apps y servicios", d.appsMb, Azul),
+        Triple("Kernel", d.kernelMb, Ambar),
+        Triple("Controladores de vídeo/gráficos (sin contabilizar)", d.sinContabilizarMb, Alerta),
+    )
+    Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Row(Modifier.fillMaxWidth().height(14.dp).clip(RoundedCornerShape(7.dp))) {
+            partes.forEach { (_, mb, c) ->
+                Box(Modifier.weight(mb.coerceAtLeast(1).toFloat()).fillMaxHeight().background(c))
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        partes.forEach { (nombre, mb, c) ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(10.dp).height(10.dp).clip(CircleShape).background(c))
+                Spacer(Modifier.width(10.dp))
+                Text(nombre, style = AntenaType.body, color = FosforoTenue, modifier = Modifier.weight(1f))
+                Text("$mb MB · ${if (d.totalMb > 0) mb * 100 / d.totalMb else 0} %", style = AntenaType.body, color = Fosforo)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        val extra = buildList {
+            add("Total ${d.totalMb} MB · disponible sin matar apps: ${d.disponibleMb} MB")
+            if (d.compartidaMb > 0) add("Compartida (dentro de la caché): ${d.compartidaMb} MB")
+            if (d.cmaTotalMb > 0) add("Reserva CMA de vídeo: ${d.cmaUsadaMb} de ${d.cmaTotalMb} MB en uso")
+            if (d.swapUsadoMb > 0) add("Swap en uso: ${d.swapUsadoMb} MB")
+        }
+        extra.forEach { Text(it, style = AntenaType.meta, color = FosforoTenue) }
     }
 }

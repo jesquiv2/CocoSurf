@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.2.0 — 2026-10-22
+- Diagnóstico: reparto de la RAM de TODO el aparato (libre, caché, apps, kernel, controladores de vídeo/gráficos, CMA, swap) y procesos de Coco Surf.
+- Monitor: nuevas cifras de RAM del aparato (apps, caché, kernel, vídeo/gráficos).
+- Bitácora: el reparto de RAM del aparato se anota con cada cambio de presión y cada ~5 min.
+- herramientas/memoria-tv.ps1: registra desde el PC, con adb, la memoria de todas las apps del televisor (CSV + avisos de picos).
+
 ## 1.1.1 — 2026-10-20
 - Repositorio: .gitignore ampliado (capturas, borradores, .claude, .remember, graft, .kotlin, logs, APK) y archivos sueltos fuera del control de versiones.
 
