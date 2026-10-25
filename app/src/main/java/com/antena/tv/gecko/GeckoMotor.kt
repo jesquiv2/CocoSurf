@@ -539,6 +539,40 @@ object GeckoMotor {
         refrescar()
     }
 
+    // ── Precalentamiento ──────────────────────────────────────────────────
+    // La primera página tardaba 30–40 s en el televisor: el proceso de contenido y el
+    // motor de JavaScript arrancaban en frío justo cuando el usuario pedía la página.
+    // Se abre una sesión vacía mientras se está en Inicio para que ese arranque ya esté hecho.
+    private var sesionCalentamiento: GeckoSession? = null
+    private var inicioCalentamientoMs = 0L
+
+    fun precalentar(context: Context) {
+        if (sesionCalentamiento != null || sesiones.isNotEmpty()) return
+        val rt = runtime(context)
+        runCatching {
+            val s = GeckoSession(
+                org.mozilla.geckoview.GeckoSessionSettings.Builder().suspendMediaWhenInactive(true).build(),
+            )
+            s.progressDelegate = object : GeckoSession.ProgressDelegate {
+                override fun onPageStop(session: GeckoSession, success: Boolean) {
+                    val seg = (android.os.SystemClock.elapsedRealtime() - inicioCalentamientoMs) / 1000
+                    Bitacora.add(LogKind.SISTEMA, "Motor precalentado en ${seg} s (proceso de contenido listo)")
+                }
+            }
+            s.open(rt)
+            sesionCalentamiento = s
+            inicioCalentamientoMs = android.os.SystemClock.elapsedRealtime()
+            s.loadUri("data:text/html;charset=utf-8,<html><body></body></html>")
+        }.onFailure { Log.w(TAG, "precalentar falló: ${it.message}") }
+    }
+
+    /** Ya hay una pestaña real (o se apagó el ajuste): la sesión de calentamiento sobra. */
+    fun liberarPrecalentamiento() {
+        val s = sesionCalentamiento ?: return
+        sesionCalentamiento = null
+        runCatching { s.close() }
+    }
+
     /** Sesión Gecko recién creada: engancha el delegate de la extensión interna. */
     fun registrarSesion(session: GeckoSession) {
         sesiones += session

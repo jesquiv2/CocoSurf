@@ -1490,6 +1490,8 @@ fun ConfiguracionPage(
     onImanCambio: () -> Unit = {},
     restaurarPestanas: Boolean = true,
     onRestaurarPestanas: (Boolean) -> Unit = {},
+    precalentar: Boolean = true,
+    onPrecalentar: (Boolean) -> Unit = {},
 ) {
     var pestana by remember { mutableStateOf(0) }
     Column(
@@ -1565,6 +1567,12 @@ fun ConfiguracionPage(
                             descripcion = "Al cerrar la app se guardan las páginas abiertas y se traen de vuelta al abrirla.",
                             onClick = { onRestaurarPestanas(!restaurarPestanas) },
                         ) { Interruptor(restaurarPestanas, onRestaurarPestanas) }
+                        Separador(Modifier.padding(horizontal = 14.dp))
+                        FilaAjuste(
+                            titulo = "Precalentar el motor",
+                            descripcion = "Mientras estás en Inicio el motor arranca por dentro para que la primera página cargue rápido. Usa unos 100 MB hasta que abres una página.",
+                            onClick = { onPrecalentar(!precalentar) },
+                        ) { Interruptor(precalentar, onPrecalentar) }
                     }
 
                     SeccionAjustes("Fondo de la página de inicio") { AjusteFondoInicio() }

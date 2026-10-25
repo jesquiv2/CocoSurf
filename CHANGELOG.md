@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.3.1 — 2026-10-24
+- APK release con R8 (código recortado): el dex ya no se carga entero; baja unos 30–40 MB el proceso de la interfaz. Firmado con la clave de depuración hasta tener una propia.
+- Precalentar el motor: en Inicio se abre una sesión vacía para que el proceso de contenido ya esté listo cuando se abre la primera página (ajustable en Configuración). La Bitácora anota «Motor precalentado» y «Complemento listo».
+
 ## 1.3.0 — 2026-10-24
 - Recordar pestañas: al cerrar la app se guardan las páginas abiertas y se restauran al abrirla (se puede apagar en Configuración).
 - Buscar actualización en «Acerca de» y aviso diario: lee la última Release de GitHub, descarga el APK y abre el instalador (requiere repositorio/Release público).

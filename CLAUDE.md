@@ -1,13 +1,13 @@
 # Coco Surf — reglas del proyecto
 
 ## Versionado (obligatorio)
-- Versión actual: **1.3.0** (`versionName`/`versionCode` en `app/build.gradle.kts`).
+- Versión actual: **1.3.1** (`versionName`/`versionCode` en `app/build.gradle.kts`).
 - Cada cambio que se entregue al usuario sube la versión **antes de compilar**:
   - correcciones pequeñas → 1.0.x (patch),
   - funciones nuevas → 1.x.0 (minor),
   - cambios grandes/incompatibles → x.0.0 (major).
 - `versionCode` sube siempre en 1 con cada build entregado.
-- El APK sale como `CocoSurf-<versión>.apk` en la raíz (lo ignora git).
+- Se entrega la variante **release** (`.\gradlew.bat assembleRelease`): `CocoSurf-<versión>-release.apk` en la raíz (lo ignora git). La debug (`assembleDebug`) sólo para desarrollo: pesa ~30 MB más de RAM.
 - Apuntar el cambio en `CHANGELOG.md` con la misma versión y fecha.
 - Hacer commit con la versión en el mensaje (`v1.0.1: …`).
 

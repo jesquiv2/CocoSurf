@@ -15,8 +15,8 @@ android {
         // (Xiaomi, Android 11 / API 30) queda cubierta.
         minSdk = 26
         targetSdk = 34
-        versionCode = 15
-        versionName = "1.3.0"
+        versionCode = 16
+        versionName = "1.3.1"
 
         ndk {
             // M5 · GeckoView arrastra nativos por ABI; sin filtro el APK sale
@@ -40,7 +40,12 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Menos código cargado en memoria (el dex sin recortar pesaba ~30 MB en la interfaz).
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Mientras no haya una clave propia, se firma con la de depuración (sirve para instalar y probar).
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

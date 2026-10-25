@@ -275,6 +275,7 @@ fun BrowserScreen() {
     // Recordar las pestañas al cerrar la app y traerlas al abrirla.
     var restaurarPestanas by remember { mutableStateOf(true) }
     var pestanasCargadas by remember { mutableStateOf(false) }
+    var precalentarMotor by remember { mutableStateOf(true) }
     // Contraseñas: lo que Gecko pregunta (guardar) u ofrece (rellenar) en la página activa.
     var claveGuardar by remember { mutableStateOf<PeticionGuardar?>(null) }
     var claveElegir by remember { mutableStateOf<PeticionElegir?>(null) }
@@ -392,6 +393,10 @@ fun BrowserScreen() {
     }
 
     fun webTab(id: Int, laAbreGecko: Boolean = false): WebTab = webTabs.getOrPut(id) {
+        if (webTabs.isEmpty()) {
+            // El proceso de contenido ya está caliente: la sesión de calentamiento se suelta pasados unos segundos.
+            scope.launch { delay(4_000); GeckoMotor.liberarPrecalentamiento() }
+        }
         if (!GeckoMotor.bloqueadorListo && webTabs.isEmpty()) {
             toast("Primera carga: el motor y el bloqueador están arrancando…")
         }
@@ -876,6 +881,7 @@ fun BrowserScreen() {
             Triple(db.settingDao().get("restaurar_pestanas"), db.settingDao().get("pestanas_guardadas"), db.settingDao().get("pestana_activa"))
         }
         restaurarPestanas = guardadas.first != "0"
+        precalentarMotor = withContext(Dispatchers.IO) { db.settingDao().get("precalentar") } != "0"
         if (restaurarPestanas && !guardadas.second.isNullOrBlank()) {
             runCatching {
                 val arr = org.json.JSONArray(guardadas.second)
@@ -895,6 +901,10 @@ fun BrowserScreen() {
             }.onFailure { Bitacora.add(LogKind.ERROR, "No se pudieron restaurar las pestañas: ${it.message}") }
         }
         pestanasCargadas = true
+        // Si la primera pantalla es una página web ya se carga sola; en Inicio se calienta el motor.
+        if (precalentarMotor && tabs.firstOrNull { it.id == activeId }?.url?.startsWith("http") != true) {
+            GeckoMotor.precalentar(context)
+        }
         // Una vez al día se mira si hay versión nueva (sin molestar si no la hay).
         val ultimaBusqueda = withContext(Dispatchers.IO) { db.settingDao().get("act_ultima")?.toLongOrNull() ?: 0L }
         if (System.currentTimeMillis() - ultimaBusqueda > 24L * 3600_000L) {
@@ -1500,6 +1510,12 @@ fun BrowserScreen() {
         velocidadId = id
         Puntero.factorVel = factorDeVelocidad(id)
         scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("cursor_vel", id)) }
+    }
+
+    fun elegirPrecalentar(si: Boolean) {
+        precalentarMotor = si
+        if (si) GeckoMotor.precalentar(context) else GeckoMotor.liberarPrecalentamiento()
+        scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("precalentar", if (si) "1" else "0")) }
     }
 
     fun elegirRestaurar(si: Boolean) {
@@ -2291,6 +2307,8 @@ fun BrowserScreen() {
                                 onImanCambio = { val v = Puntero.imanActivo; scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("iman_cursor", if (v) "1" else "0")) } },
                                 restaurarPestanas = restaurarPestanas,
                                 onRestaurarPestanas = ::elegirRestaurar,
+                                precalentar = precalentarMotor,
+                                onPrecalentar = ::elegirPrecalentar,
                             )
                             else -> DashboardPage(
                                 favorites = favorites,
