@@ -1,5 +1,10 @@
 # Cambios
 
+## 1.2.1 — 2026-10-24
+- Video: con un video en curso, la Bitácora anota cada medición (libre, páginas, gráficos, complementos, interfaz, caché, apps, kernel, controladores) para ver qué se come la memoria.
+- Video: con memoria baja y video sonando, se le pide al motor que limpie cachés (una vez por minuto).
+- Corregido: el registro de recursos mostraba siempre la página y las pestañas del inicio, no las actuales.
+
 ## 1.2.0 — 2026-10-22
 - Diagnóstico: reparto de la RAM de TODO el aparato (libre, caché, apps, kernel, controladores de vídeo/gráficos, CMA, swap) y procesos de Coco Surf.
 - Monitor: nuevas cifras de RAM del aparato (apps, caché, kernel, vídeo/gráficos).

@@ -1025,12 +1025,17 @@ fun BrowserScreen() {
             if (id != popupId && id !in popupIds) runCatching { w.session.setActive(id == activeId) }
         }
     }
+    val enVideoActual by rememberUpdatedState(pantallaCompleta || webTabs[activeId]?.reproduciendo == true)
+    // La corutina del muestreo se crea una sola vez: estos valores se leen siempre actuales.
+    val vivasActual by rememberUpdatedState(webTabs.size)
+    val urlActual by rememberUpdatedState(activeTab.url)
     // Vigilante: cada pocos segundos mide la memoria libre y actúa ANTES de que
     // el televisor se cuelgue.
     LaunchedEffect(Unit) {
         var anterior = Memoria.Presion.NORMAL
         var extremas = 0
         var criticas = 0
+        var ultimaLimpieza = 0L
         while (true) {
             delay(2_000)
             val e = Memoria.leer(context)
@@ -1042,6 +1047,21 @@ fun BrowserScreen() {
                         "(reserva ${e.reservaMb} MB) · pestañas vivas ${webTabs.size}/$tope · " + com.antena.tv.gecko.MemoriaSistema.resumen(),
                 )
                 anterior = e.presion
+            }
+            // Limpieza del motor: con presión de memoria (y más si hay un video corriendo) se le pide a
+            // Gecko que suelte cachés y haga limpieza, como cuando Android se lo pide. Una vez por minuto.
+            val ahoraMs = System.currentTimeMillis()
+            if (e.presion >= Memoria.Presion.BAJA && enVideoActual && ahoraMs - ultimaLimpieza > 60_000) {
+                ultimaLimpieza = ahoraMs
+                Memoria.pedirLimpiezaMotor(context)
+                Bitacora.add(
+                    LogKind.SISTEMA,
+                    "Limpieza del motor pedida (video en curso, ${e.libreMb} MB libres)",
+                )
+            } else if (e.presion >= Memoria.Presion.CRITICA && ahoraMs - ultimaLimpieza > 60_000) {
+                ultimaLimpieza = ahoraMs
+                Memoria.pedirLimpiezaMotor(context)
+                Bitacora.add(LogKind.SISTEMA, "Limpieza del motor pedida (${e.libreMb} MB libres)")
             }
             var quitadas = 0
             when (e.presion) {
@@ -1099,7 +1119,6 @@ fun BrowserScreen() {
     LaunchedEffect(MonitorConfig.visible) {
         if (MonitorConfig.visible) com.antena.tv.gecko.FpsInterfaz.encender() else com.antena.tv.gecko.FpsInterfaz.apagar()
     }
-    val enVideoActual by rememberUpdatedState(pantallaCompleta || webTabs[activeId]?.reproduciendo == true)
     LaunchedEffect(Unit) {
         var n = 0
         var libreAntes = -1L
@@ -1107,8 +1126,8 @@ fun BrowserScreen() {
         while (true) {
             val visible = MonitorConfig.visible
             val enVideo = enVideoActual
-            val vivas = webTabs.size
-            val url = activeTab.url
+            val vivas = vivasActual
+            val url = urlActual
             val m = withContext(Dispatchers.Default) {
                 com.antena.tv.gecko.Recursos.muestrear(context, vivas, url)
             }
@@ -1126,6 +1145,17 @@ fun BrowserScreen() {
                     )
                 }
                 libreAntes = m.libreMb
+                // Con un video en curso se anota cada medición: es lo que explica a dónde se va la memoria.
+                if (enVideo) {
+                    val s = m.sis
+                    Bitacora.add(
+                        LogKind.SISTEMA,
+                        "VIDEO · libre ${m.libreMb} MB · páginas ${m.paginasMb} · gráficos ${m.graficosMb} · " +
+                            "complementos ${m.complementosMb} · interfaz ${m.appMb} · otros ${m.otrosMb}" +
+                            (s?.let { " · caché ${it.cacheMb} · apps ${it.appsMb} · kernel ${it.kernelMb} · controladores ${it.sinContabilizarMb}" } ?: "") +
+                            (m.cpuTotal?.let { " · CPU ${it.toInt()} %" } ?: "") + " · ${hostOf(url) ?: url}",
+                    )
+                }
                 // Cada ~5 minutos queda en la Bitácora el reparto de la RAM del aparato (tendencia).
                 guardadas++
                 if (guardadas % 20 == 1) Bitacora.add(LogKind.SISTEMA, com.antena.tv.gecko.MemoriaSistema.resumen())

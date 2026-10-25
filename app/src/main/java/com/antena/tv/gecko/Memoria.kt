@@ -56,6 +56,18 @@ object Memoria {
         }
     }
 
+    /**
+     * Pide al motor (Gecko) que haga limpieza como si Android se lo pidiera: suelta cachés de imágenes y
+     * de páginas, recolecta basura de JavaScript y devuelve memoria al sistema. Lo hace el mismo mecanismo
+     * con el que el motor reacciona a los avisos de poca memoria (`MemoryController`).
+     */
+    fun pedirLimpiezaMotor(context: Context) {
+        runCatching {
+            (context.applicationContext as android.app.Application)
+                .onTrimMemory(android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)
+        }
+    }
+
     /** Una línea legible de cada escalón. */
     fun etiqueta(p: Presion): String = when (p) {
         Presion.NORMAL -> "Normal"
