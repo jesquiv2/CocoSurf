@@ -272,6 +272,9 @@ fun BrowserScreen() {
     var recarga by remember { mutableIntStateOf(0) }
     // Pestañas pausadas por memoria extrema: muestran un aviso con «Reintentar».
     var pausadas by remember { mutableStateOf(setOf<Int>()) }
+    // Recordar las pestañas al cerrar la app y traerlas al abrirla.
+    var restaurarPestanas by remember { mutableStateOf(true) }
+    var pestanasCargadas by remember { mutableStateOf(false) }
     // Contraseñas: lo que Gecko pregunta (guardar) u ofrece (rellenar) en la página activa.
     var claveGuardar by remember { mutableStateOf<PeticionGuardar?>(null) }
     var claveElegir by remember { mutableStateOf<PeticionElegir?>(null) }
@@ -389,6 +392,9 @@ fun BrowserScreen() {
     }
 
     fun webTab(id: Int, laAbreGecko: Boolean = false): WebTab = webTabs.getOrPut(id) {
+        if (!GeckoMotor.bloqueadorListo && webTabs.isEmpty()) {
+            toast("Primera carga: el motor y el bloqueador están arrancando…")
+        }
         WebTab(id, context, laAbreGecko = laAbreGecko).also { w ->
             if (!agenteAnotado) {
                 agenteAnotado = true
@@ -854,7 +860,7 @@ fun BrowserScreen() {
         if (ancladas != null) extAncladas = ancladas.split(',').filter { it.isNotBlank() }.toSet()
         // Control remoto, modo de página y monitor de recursos.
         val otros = withContext(Dispatchers.IO) {
-            listOf("cursor_vel", "modo_pagina", "mon_pos", "mon_graf", "mon_met", "mon_tecla", "mon_vis")
+            listOf("cursor_vel", "modo_pagina", "mon_pos", "mon_graf", "mon_met", "mon_tecla", "mon_vis", "iman_cursor")
                 .map { db.settingDao().get(it) }
         }
         otros[0]?.let { velocidadId = it; Puntero.factorVel = factorDeVelocidad(it) }
@@ -864,6 +870,41 @@ fun BrowserScreen() {
         otros[4]?.let { MonitorConfig.metricas = it.split(',').filter { s -> s.isNotBlank() }.toSet() }
         otros[5]?.toIntOrNull()?.let { MonitorConfig.tecla = it }
         otros[6]?.let { MonitorConfig.visible = it == "1" }
+        otros[7]?.let { Puntero.imanActivo = it != "0" }
+        // Pestañas de la sesión anterior.
+        val guardadas = withContext(Dispatchers.IO) {
+            Triple(db.settingDao().get("restaurar_pestanas"), db.settingDao().get("pestanas_guardadas"), db.settingDao().get("pestana_activa"))
+        }
+        restaurarPestanas = guardadas.first != "0"
+        if (restaurarPestanas && !guardadas.second.isNullOrBlank()) {
+            runCatching {
+                val arr = org.json.JSONArray(guardadas.second)
+                val lista = (0 until arr.length()).map { i ->
+                    val o = arr.getJSONObject(i)
+                    PageTab(i, o.optString("t").ifBlank { hostOf(o.getString("u")) ?: "Página" }, o.getString("u"))
+                }.filter { it.url.startsWith("http") }
+                if (lista.isNotEmpty()) {
+                    webTabs.keys.toList().forEach { destroy(it) }
+                    tabs = lista
+                    nextId = lista.size
+                    activeId = (guardadas.third?.toIntOrNull() ?: 0).coerceIn(0, lista.size - 1)
+                    // Se cargan al mirarlas: sólo la activa gasta memoria al abrir.
+                    descartadas.addAll(lista.map { it.id })
+                    Bitacora.add(LogKind.SISTEMA, "Pestañas restauradas: ${lista.size}")
+                }
+            }.onFailure { Bitacora.add(LogKind.ERROR, "No se pudieron restaurar las pestañas: ${it.message}") }
+        }
+        pestanasCargadas = true
+        // Una vez al día se mira si hay versión nueva (sin molestar si no la hay).
+        val ultimaBusqueda = withContext(Dispatchers.IO) { db.settingDao().get("act_ultima")?.toLongOrNull() ?: 0L }
+        if (System.currentTimeMillis() - ultimaBusqueda > 24L * 3600_000L) {
+            scope.launch {
+                delay(20_000)
+                val r = Actualizador.buscar(context)
+                withContext(Dispatchers.IO) { db.settingDao().put(Setting("act_ultima", System.currentTimeMillis().toString())) }
+                if (r is Actualizador.Estado.Nueva) toast("Hay una versión nueva (${r.version}): Menú → Acerca de Coco Surf")
+            }
+        }
         refreshData()
     }
 
@@ -1029,6 +1070,23 @@ fun BrowserScreen() {
     // La corutina del muestreo se crea una sola vez: estos valores se leen siempre actuales.
     val vivasActual by rememberUpdatedState(webTabs.size)
     val urlActual by rememberUpdatedState(activeTab.url)
+    // Guarda las pestañas abiertas (con un pequeño retraso) para traerlas la próxima vez.
+    LaunchedEffect(tabs, activeId, restaurarPestanas, pestanasCargadas) {
+        if (!pestanasCargadas) return@LaunchedEffect
+        delay(2_000)
+        withContext(Dispatchers.IO) {
+            if (!restaurarPestanas) {
+                db.settingDao().put(Setting("pestanas_guardadas", ""))
+            } else {
+                val web = tabs.filter { it.url.startsWith("http") }.take(12)
+                val arr = org.json.JSONArray()
+                web.forEach { arr.put(org.json.JSONObject().put("u", it.url).put("t", it.title)) }
+                db.settingDao().put(Setting("pestanas_guardadas", arr.toString()))
+                db.settingDao().put(Setting("pestana_activa", web.indexOfFirst { it.id == activeId }.coerceAtLeast(0).toString()))
+            }
+        }
+    }
+
     // Vigilante: cada pocos segundos mide la memoria libre y actúa ANTES de que
     // el televisor se cuelgue.
     LaunchedEffect(Unit) {
@@ -1444,6 +1502,11 @@ fun BrowserScreen() {
         scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("cursor_vel", id)) }
     }
 
+    fun elegirRestaurar(si: Boolean) {
+        restaurarPestanas = si
+        scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("restaurar_pestanas", if (si) "1" else "0")) }
+    }
+
     fun elegirModoPagina(id: String) {
         modoPaginaId = id
         ModoPagina.preferencia = id
@@ -1688,6 +1751,11 @@ fun BrowserScreen() {
     // Atrás: overlay → edición → barras (mostrar/ocultar) → vista interna → historia.
     // En la página de inicio no se captura: el sistema cierra la aplicación.
     var confirmarSalida by remember { mutableStateOf(false) }
+    SideEffect {
+        // Con el diálogo abierto, las flechas son de sus botones y el imán se apaga.
+        Puntero.pausado = confirmarSalida
+        Puntero.imanBloqueado = overlay != null || confirmarSalida
+    }
     BackHandler(enabled = true) {
         when {
             confirmarSalida -> confirmarSalida = false
@@ -2220,6 +2288,9 @@ fun BrowserScreen() {
                                 modoPaginaId = modoPaginaId,
                                 onModoPagina = ::elegirModoPagina,
                                 onMonitorCambio = ::guardarMonitor,
+                                onImanCambio = { val v = Puntero.imanActivo; scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("iman_cursor", if (v) "1" else "0")) } },
+                                restaurarPestanas = restaurarPestanas,
+                                onRestaurarPestanas = ::elegirRestaurar,
                             )
                             else -> DashboardPage(
                                 favorites = favorites,
@@ -2303,7 +2374,8 @@ fun BrowserScreen() {
                 val cercaAbajo = altoPx > 0f && yRel > altoPx - 96f * densidadPx
                 val verlo = webActivo && !pantallaCompleta
                 ManijaBarras(
-                    visible = verlo && !chromeVisible && (!usoCursor || cercaArriba) && Puntero.indicador == 0 && !Puntero.modoScroll,
+                    visible = verlo && !chromeVisible && (!usoCursor || cercaArriba || Puntero.indicador == 1) && !Puntero.modoScroll,
+                    crecida = Puntero.indicador == 1,
                     onClick = {
                         chromeOpen = true
                         composeView.postDelayed({ barFr.requestFocus() }, 350)
@@ -2312,7 +2384,8 @@ fun BrowserScreen() {
                 )
                 // Abajo: una pastilla que sube al acercar el cursor; tocarla baja una pantalla.
                 ManijaAbajo(
-                    visible = verlo && usoCursor && cercaAbajo && overlay == null && Puntero.indicador == 0 && !Puntero.modoScroll,
+                    visible = verlo && usoCursor && (cercaAbajo || Puntero.indicador == 2) && overlay == null && !Puntero.modoScroll,
+                    crecida = Puntero.indicador == 2,
                     onClick = { webTabs[activeId]?.desplazar(0f, altoPx * 0.85f) },
                     modifier = Modifier.align(Alignment.BottomCenter).zIndex(11f),
                 )
@@ -2950,7 +3023,7 @@ private fun salirDeLaApp(context: Context) {
  * pastilla fina que se ilumina al pasar por encima y las baja al tocarla.
  */
 @Composable
-private fun ManijaBarras(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ManijaBarras(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, crecida: Boolean = false) {
     val fuente = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val hover by fuente.collectIsHoveredAsState()
     androidx.compose.animation.AnimatedVisibility(
@@ -2962,16 +3035,19 @@ private fun ManijaBarras(visible: Boolean, onClick: () -> Unit, modifier: Modifi
         Box(
             Modifier
                 .hoverable(fuente)
-                .size(width = 150.dp, height = 30.dp)
+                .size(width = 190.dp, height = 30.dp)
                 .pointerInput(onClick) { detectTapGestures { onClick() } },
             contentAlignment = Alignment.TopCenter,
         ) {
             Box(
                 Modifier
                     .padding(top = 7.dp)
-                    .size(width = if (hover) 72.dp else 52.dp, height = 5.dp)
+                    .size(
+                        width = androidx.compose.animation.core.animateDpAsState(if (crecida) 140.dp else if (hover) 72.dp else 52.dp, label = "ancho").value,
+                        height = androidx.compose.animation.core.animateDpAsState(if (crecida) 6.dp else 5.dp, label = "alto").value,
+                    )
                     .clip(RoundedCornerShape(3.dp))
-                    .background(Fosforo.copy(alpha = if (hover) 0.9f else 0.55f)),
+                    .background(Fosforo.copy(alpha = if (crecida) 0.85f else if (hover) 0.9f else 0.55f)),
             )
         }
     }
@@ -2979,7 +3055,7 @@ private fun ManijaBarras(visible: Boolean, onClick: () -> Unit, modifier: Modifi
 
 /** Pastilla de abajo: indica que hay más página; tocarla baja una pantalla. */
 @Composable
-private fun ManijaAbajo(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ManijaAbajo(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, crecida: Boolean = false) {
     val fuente = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val hover by fuente.collectIsHoveredAsState()
     androidx.compose.animation.AnimatedVisibility(
@@ -2991,16 +3067,19 @@ private fun ManijaAbajo(visible: Boolean, onClick: () -> Unit, modifier: Modifie
         Box(
             Modifier
                 .hoverable(fuente)
-                .size(width = 150.dp, height = 30.dp)
+                .size(width = 190.dp, height = 30.dp)
                 .pointerInput(onClick) { detectTapGestures { onClick() } },
             contentAlignment = Alignment.BottomCenter,
         ) {
             Box(
                 Modifier
                     .padding(bottom = 8.dp)
-                    .size(width = if (hover) 84.dp else 60.dp, height = 6.dp)
+                    .size(
+                        width = androidx.compose.animation.core.animateDpAsState(if (crecida) 140.dp else if (hover) 84.dp else 60.dp, label = "ancho").value,
+                        height = 6.dp,
+                    )
                     .clip(RoundedCornerShape(3.dp))
-                    .background(androidx.compose.ui.graphics.Color.White.copy(alpha = if (hover) 0.9f else 0.6f)),
+                    .background(androidx.compose.ui.graphics.Color.White.copy(alpha = if (crecida) 0.85f else if (hover) 0.9f else 0.6f)),
             )
         }
     }
@@ -3008,10 +3087,10 @@ private fun ManijaAbajo(visible: Boolean, onClick: () -> Unit, modifier: Modifie
 
 /** Multiplicador de la velocidad del cursor para cada opción de Configuración. */
 internal fun factorDeVelocidad(id: String): Float = when (id) {
-    "lenta" -> 0.6f
-    "rapida" -> 1.6f
-    "turbo" -> 2.5f
-    else -> 1f
+    "lenta" -> 1.2f
+    "rapida" -> 3.2f
+    "turbo" -> 5f
+    else -> 2f
 }
 
 /** Aviso de una página pausada por memoria al límite (antes, el televisor se colgaba). */

@@ -134,4 +134,47 @@
     },
     true,
   );
+
+  // ── Reproductores con «OPCIÓN 1» en HLS (AnimeFLV y temas parecidos) ──
+  // La primera opción apunta a una lista .m3u8 pensada para Safari: en Firefox sólo muestra
+  // «No video with supported format and MIME type found». Se deja como predeterminada la
+  // primera opción que sí es un reproductor web (UPNShare, Voe, MP4Upload…).
+  function esHls(u) {
+    return u.indexOf("/m3u8/") !== -1 || u.indexOf(".m3u8") !== -1;
+  }
+  function decodificar(b64) {
+    try {
+      return atob(b64 || "");
+    } catch (e) {
+      return "";
+    }
+  }
+  function arreglarOpcionesHls() {
+    var holder = document.getElementById("iframeHolder");
+    var botones = Array.prototype.slice.call(document.querySelectorAll(".iframe_btn[data-src]"));
+    if (!holder || botones.length < 2) return false;
+    var actual = decodificar(holder.getAttribute("data-default-src"));
+    if (!esHls(actual)) return true;
+    var bueno = null;
+    for (var i = 0; i < botones.length; i++) {
+      if (!esHls(decodificar(botones[i].getAttribute("data-src")))) {
+        bueno = botones[i];
+        break;
+      }
+    }
+    if (!bueno) return true;
+    holder.setAttribute("data-default-src", bueno.getAttribute("data-src"));
+    var activos = document.querySelectorAll(".active_frame");
+    for (var j = 0; j < activos.length; j++) activos[j].classList.remove("active_frame");
+    bueno.classList.add("active_frame");
+    // Si la página ya había cargado la opción HLS en el marco, se pasa a la buena.
+    var marco = document.getElementById("load");
+    if (marco && !marco.hidden && esHls(marco.src || "")) bueno.click();
+    return true;
+  }
+  if (document.getElementById("iframeHolder")) {
+    arreglarOpcionesHls();
+    setTimeout(arreglarOpcionesHls, 800);
+    setTimeout(arreglarOpcionesHls, 2500);
+  }
 })();

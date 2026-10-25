@@ -1,5 +1,15 @@
 # Cambios
 
+## 1.3.0 — 2026-10-24
+- Recordar pestañas: al cerrar la app se guardan las páginas abiertas y se restauran al abrirla (se puede apagar en Configuración).
+- Buscar actualización en «Acerca de» y aviso diario: lee la última Release de GitHub, descarga el APK y abre el instalador (requiere repositorio/Release público).
+- AnimeFLV: la «OPCIÓN 1» (HLS, sólo Safari) ya no es la predeterminada; se elige la primera opción con reproductor web.
+- Menú contextual (mantener OK): queda fijo donde nació, el cursor se mueve libre encima.
+- Cursor: todas las velocidades al doble; imán que centra el cursor en iconos y botones pequeños (se puede apagar).
+- Asas de arriba/abajo: una sola pastilla que crece al llegar al tope (ya no aparece una segunda).
+- Diálogo «¿Salir?»: se elige con las flechas del control, sin depender del cursor.
+- Bitácora: anota cuánto tarda el bloqueador (uBlock) en estar listo tras arrancar el motor; aviso en pantalla durante la primera carga.
+
 ## 1.2.1 — 2026-10-24
 - Video: con un video en curso, la Bitácora anota cada medición (libre, páginas, gráficos, complementos, interfaz, caché, apps, kernel, controladores) para ver qué se come la memoria.
 - Video: con memoria baja y video sonando, se le pide al motor que limpie cachés (una vez por minuto).

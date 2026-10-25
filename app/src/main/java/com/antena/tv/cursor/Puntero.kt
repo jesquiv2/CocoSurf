@@ -50,6 +50,9 @@ import kotlinx.coroutines.delay
  */
 object Puntero {
     /** Lo decide la pantalla: hay una página web a la vista y nada modal encima. */
+    /** Un diálogo (p. ej. «¿Salir?») pide las flechas y OK para sí: el cursor no las consume. */
+    var pausado by mutableStateOf(false)
+
     var activo by mutableStateOf(false)
 
     /** Posición en píxeles de la ventana. */
@@ -97,6 +100,68 @@ object Puntero {
 
     fun quitarZona(id: Any) {
         zonas.remove(id)
+    }
+
+    // ── Imán: el cursor se centra solo en los botones pequeños que tiene cerca ──
+    var imanActivo by mutableStateOf(true)
+
+    /** Un panel o diálogo tapa los botones de debajo: sin imán mientras tanto. */
+    var imanBloqueado = false
+
+    private val imanes = LinkedHashMap<Any, androidx.compose.ui.geometry.Rect>()
+
+    fun registrarIman(id: Any, r: androidx.compose.ui.geometry.Rect) {
+        imanes[id] = r
+    }
+
+    fun quitarIman(id: Any) {
+        imanes.remove(id)
+    }
+
+    private fun distanciaARect(p: Offset, r: androidx.compose.ui.geometry.Rect): Float {
+        val dx = maxOf(r.left - p.x, 0f, p.x - r.right)
+        val dy = maxOf(r.top - p.y, 0f, p.y - r.bottom)
+        return Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
+    }
+
+    /** Tras un paso hacia (dx, dy): si hay un botón pequeño justo delante, el cursor salta a su centro. */
+    private fun imantarPaso(dx: Float, dy: Float) {
+        if (!imanActivo || imanBloqueado || pulsado || modoScroll || scrollOn) return
+        val alcance = 30f * densidad
+        var mejor: androidx.compose.ui.geometry.Rect? = null
+        var dMejor = Float.MAX_VALUE
+        for (r in imanes.values) {
+            if (r.contains(pos)) continue
+            val d = distanciaARect(pos, r)
+            if (d > alcance || d >= dMejor) continue
+            val c = r.center
+            // Sólo si el paso se dirigía hacia él (no se «pega» a lo que se deja atrás).
+            if ((c.x - pos.x) * dx + (c.y - pos.y) * dy <= 0f) continue
+            mejor = r
+            dMejor = d
+        }
+        mejor?.let { irACentro(it) }
+    }
+
+    /** Al soltar la flecha: si el cursor quedó encima o muy cerca de un botón pequeño, se centra. */
+    private fun imantarReposo() {
+        if (!imanActivo || imanBloqueado || pulsado || modoScroll || scrollOn) return
+        val alcance = 16f * densidad
+        var mejor: androidx.compose.ui.geometry.Rect? = null
+        var dMejor = Float.MAX_VALUE
+        for (r in imanes.values) {
+            val d = distanciaARect(pos, r)
+            if (d > alcance || d >= dMejor) continue
+            mejor = r
+            dMejor = d
+        }
+        mejor?.let { if (Math.hypot((it.center.x - pos.x).toDouble(), (it.center.y - pos.y).toDouble()) > 3f * densidad) irACentro(it) }
+    }
+
+    private fun irACentro(r: androidx.compose.ui.geometry.Rect) {
+        pos = r.center
+        movimiento = SystemClock.uptimeMillis()
+        decorRef?.let { if (activo && !pulsado) hover(it) }
     }
 
     /** Tras abrir/cerrar barras o paneles: que lo «iluminado» por el cursor se corrija solo. */
@@ -196,9 +261,12 @@ object Puntero {
                 // En modo desplazar, soltar las flechas levanta el dedo virtual (con inercia).
                 if (modoScroll) decorRef?.let { terminarToque(it) }
                 parar()
+                if (!modoScroll) imantarReposo()
             }
         }
         if (!activo && !pulsado) return false
+        // Con un diálogo abierto las flechas y OK mueven el foco de sus botones, no el cursor.
+        if (pausado && (dir || k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER)) return false
 
         val decor = act.window.decorView
         decorRef = decor
@@ -233,11 +301,10 @@ object Puntero {
                     // Un toque suelto = un paso corto y preciso (para llegar a un botón
                     // pequeño); si se mantiene, arranca el movimiento continuo que acelera.
                     val d = 9f * densidad * factorVel
-                    aplicar(
-                        decor,
-                        when (k) { KeyEvent.KEYCODE_DPAD_LEFT -> -d; KeyEvent.KEYCODE_DPAD_RIGHT -> d; else -> 0f },
-                        when (k) { KeyEvent.KEYCODE_DPAD_UP -> -d; KeyEvent.KEYCODE_DPAD_DOWN -> d; else -> 0f },
-                    )
+                    val pasoX = when (k) { KeyEvent.KEYCODE_DPAD_LEFT -> -d; KeyEvent.KEYCODE_DPAD_RIGHT -> d; else -> 0f }
+                    val pasoY = when (k) { KeyEvent.KEYCODE_DPAD_UP -> -d; KeyEvent.KEYCODE_DPAD_DOWN -> d; else -> 0f }
+                    aplicar(decor, pasoX, pasoY)
+                    imantarPaso(pasoX, pasoY)
                     if (primera) {
                         inicioMov = ahora
                         h.removeCallbacks(movTick)
@@ -595,6 +662,24 @@ fun Modifier.zonaScroll(estado: androidx.compose.foundation.ScrollState): Modifi
     onGloballyPositioned { Puntero.registrarZona(id, Puntero.Zona(it.boundsInWindow(), estado)) }
 }
 
+/**
+ * Marca un botón pequeño como «imán»: el cursor del mando se centra en él cuando pasa cerca.
+ * Sólo para botones de poca superficie (iconos, chips): una fila ancha no debe atraerlo.
+ */
+fun Modifier.imanCursor(): Modifier = composed {
+    val id = remember { Any() }
+    DisposableEffect(id) { onDispose { Puntero.quitarIman(id) } }
+    val dens = androidx.compose.ui.platform.LocalDensity.current.density
+    onGloballyPositioned {
+        val r = it.boundsInWindow()
+        if (r.width <= 150f * dens && r.height <= 80f * dens) {
+            Puntero.registrarIman(id, r)
+        } else {
+            Puntero.quitarIman(id)
+        }
+    }
+}
+
 /** Dibuja el puntero encima de todo (no intercepta toques). */
 @Composable
 fun PunteroOverlay() {
@@ -610,7 +695,8 @@ fun PunteroOverlay() {
     // que se mueve la página, sin importar si el cursor está atenuado.
     Canvas(Modifier.fillMaxSize()) {
         val ind = Puntero.indicador
-        if (ind != 0) {
+        // En las páginas web, arriba y abajo el aviso es el asa que crece (ver BrowserScreen).
+        if (ind != 0 && !(Puntero.esWeb && (ind == 1 || ind == 2))) {
             val largo = 140.dp.toPx()
             val grueso = 6.dp.toPx()
             val m = 8.dp.toPx()

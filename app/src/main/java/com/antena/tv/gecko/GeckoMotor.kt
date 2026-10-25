@@ -66,6 +66,14 @@ object GeckoMotor {
 
     private var runtime: GeckoRuntime? = null
 
+    /** Instante (elapsedRealtime) en que se creó el motor: sirve para medir cuánto tarda el bloqueador. */
+    private var inicioMotorMs = 0L
+
+    /** Ya llegó la primera señal de un complemento (uBlock): los avisos de página dejan de esperar. */
+    @Volatile
+    var bloqueadorListo = false
+        private set
+
     private val _extensiones = MutableStateFlow<List<ExtInfo>>(emptyList())
     /** Extensiones instaladas, ya traducidas para la UI. */
     val extensiones: StateFlow<List<ExtInfo>> = _extensiones
@@ -311,6 +319,11 @@ object GeckoMotor {
             return
         }
         accionesObj += extension.id to action
+        if (!bloqueadorListo && extension.id != EXT_INTERNA) {
+            bloqueadorListo = true
+            val seg = (android.os.SystemClock.elapsedRealtime() - inicioMotorMs) / 1000
+            Bitacora.add(LogKind.SISTEMA, "Complemento listo: ${extension.metaData.name ?: extension.id} (${seg} s después de arrancar el motor)")
+        }
         val info = AccionInfo(
             extId = extension.id,
             nombre = extension.metaData.name ?: extension.id,
@@ -460,6 +473,7 @@ object GeckoMotor {
             .loginAutofillEnabled(true)
             .build()
         val rt = GeckoRuntime.create(context.applicationContext, ajustes)
+        inicioMotorMs = android.os.SystemClock.elapsedRealtime()
         ajustarPreferencias()
         // Contraseñas guardadas en el aparato (cifradas): Gecko las pide y las entrega aquí.
         com.antena.tv.browser.Contrasenas.iniciar(context)

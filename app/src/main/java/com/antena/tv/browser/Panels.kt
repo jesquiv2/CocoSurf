@@ -94,6 +94,7 @@ import com.antena.tv.db.SearchEngine
 import com.antena.tv.log.Bitacora
 import com.antena.tv.log.LogEntry
 import com.antena.tv.log.LogKind
+import com.antena.tv.cursor.imanCursor
 import com.antena.tv.ui.ACENTOS
 import com.antena.tv.ui.Alerta
 import com.antena.tv.ui.EsquinaBoton
@@ -710,6 +711,7 @@ fun RemoteChip(
                 },
             )
             .clip(shape)
+            .imanCursor()
             .background(bg)
             .border(if (focused) 1.5.dp else 1.dp, border, shape)
             .then(if (enabled) Modifier.onKeyEvent(center) else Modifier)
@@ -1355,6 +1357,8 @@ fun AcercaPage(version: String, onClose: () -> Unit, onAbrir: (String) -> Unit =
                 }
             }
         }
+        Spacer(Modifier.height(16.dp))
+        SeccionActualizacion()
         Spacer(Modifier.height(22.dp))
         ACERCA_CREDITOS.forEachIndexed { i, linea ->
             Text(
@@ -1374,6 +1378,43 @@ fun AcercaPage(version: String, onClose: () -> Unit, onAbrir: (String) -> Unit =
                     onAbrir(ACERCA_CAFE_URL)
                 },
             )
+        }
+    }
+}
+
+/** Buscar, descargar e instalar la última versión publicada en GitHub. */
+@Composable
+private fun SeccionActualizacion() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val alcance = androidx.compose.runtime.rememberCoroutineScope()
+    val e = Actualizador.estado
+    Column(Modifier.widthIn(max = 620.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        val texto = when (e) {
+            is Actualizador.Estado.Inactivo -> "Versión instalada: ${Actualizador.versionActual(ctx)}"
+            is Actualizador.Estado.Buscando -> "Buscando…"
+            is Actualizador.Estado.AlDia -> "Estás al día (${e.version})."
+            is Actualizador.Estado.Nueva -> "Hay una versión nueva: ${e.version} (${e.mb} MB)."
+            is Actualizador.Estado.SinPublicar -> "No hay actualizaciones publicadas: ${e.detalle}."
+            is Actualizador.Estado.Error -> "No se pudo comprobar: ${e.motivo}"
+            is Actualizador.Estado.Descargando -> "Descargando ${e.version}… ${e.pct} %"
+            is Actualizador.Estado.Listo -> "Descargada la ${e.version}. Pulsa Instalar."
+        }
+        Text(texto, style = AntenaType.body, color = if (e is Actualizador.Estado.Nueva || e is Actualizador.Estado.Listo) Ambar else FosforoTenue)
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            when (e) {
+                is Actualizador.Estado.Nueva -> {
+                    RemoteChip(label = "Descargar e instalar", accent = true, onClick = { alcance.launch { Actualizador.descargar(ctx, e) } })
+                    RemoteChip(label = "Buscar de nuevo", onClick = { alcance.launch { Actualizador.buscar(ctx) } })
+                }
+                is Actualizador.Estado.Listo -> RemoteChip(label = "Instalar", accent = true, onClick = { Actualizador.instalar(ctx, e) })
+                is Actualizador.Estado.Descargando, is Actualizador.Estado.Buscando -> Unit
+                else -> RemoteChip(label = "Buscar actualización", onClick = { alcance.launch { Actualizador.buscar(ctx) } })
+            }
+        }
+        if (e is Actualizador.Estado.Nueva && e.notas.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Text(e.notas.take(600), style = AntenaType.meta, color = FosforoTenue)
         }
     }
 }
@@ -1446,6 +1487,9 @@ fun ConfiguracionPage(
     modoPaginaId: String = "auto",
     onModoPagina: (String) -> Unit = {},
     onMonitorCambio: () -> Unit = {},
+    onImanCambio: () -> Unit = {},
+    restaurarPestanas: Boolean = true,
+    onRestaurarPestanas: (Boolean) -> Unit = {},
 ) {
     var pestana by remember { mutableStateOf(0) }
     Column(
@@ -1515,6 +1559,14 @@ fun ConfiguracionPage(
                         }
                     }
 
+                    SeccionAjustes("Al abrir y cerrar") {
+                        FilaAjuste(
+                            titulo = "Recordar las pestañas",
+                            descripcion = "Al cerrar la app se guardan las páginas abiertas y se traen de vuelta al abrirla.",
+                            onClick = { onRestaurarPestanas(!restaurarPestanas) },
+                        ) { Interruptor(restaurarPestanas, onRestaurarPestanas) }
+                    }
+
                     SeccionAjustes("Fondo de la página de inicio") { AjusteFondoInicio() }
 
                     SeccionAjustes("Modo de página") {
@@ -1562,6 +1614,15 @@ fun ConfiguracionPage(
                         OptionRow("Normal", velocidadId == "normal") { onVelocidad("normal") }
                         OptionRow("Rápida", velocidadId == "rapida") { onVelocidad("rapida") }
                         OptionRow("Muy rápida", velocidadId == "turbo") { onVelocidad("turbo") }
+                    }
+                    SeccionAjustes("Imán del cursor") {
+                        FilaAjuste(
+                            titulo = "Centrar en los botones",
+                            descripcion = "Cuando el cursor pasa cerca de un icono o botón pequeño, se centra en él solo. Apágalo si te estorba.",
+                            onClick = { com.antena.tv.cursor.Puntero.imanActivo = !com.antena.tv.cursor.Puntero.imanActivo; onImanCambio() },
+                        ) {
+                            Interruptor(com.antena.tv.cursor.Puntero.imanActivo, { com.antena.tv.cursor.Puntero.imanActivo = it; onImanCambio() })
+                        }
                     }
                     SeccionAjustes("Atajos del mando") {
                         listOf(
@@ -3129,6 +3190,9 @@ fun ContextMenuCard(
     // Con cursor, la tarjeta nace junto a él (como un clic derecho); sin cursor
     // (pantalla táctil) se centra.
     val densidad = androidx.compose.ui.platform.LocalDensity.current.density
+    // La tarjeta se queda donde nació: el cursor se mueve libremente sobre ella.
+    val anclaX = remember { com.antena.tv.cursor.Puntero.pos.x }
+    val anclaY = remember { com.antena.tv.cursor.Puntero.pos.y - com.antena.tv.cursor.Puntero.origenY }
     Box(
         Modifier
             .fillMaxSize()
@@ -3141,12 +3205,12 @@ fun ContextMenuCard(
                     val p = medida.measure(c.copy(minWidth = 0, minHeight = 0))
                     val margen = (12 * densidad).toInt()
                     val x = if (com.antena.tv.cursor.Puntero.activo) {
-                        com.antena.tv.cursor.Puntero.pos.x.toInt() + margen
+                        anclaX.toInt() + margen
                     } else {
                         (c.maxWidth - p.width) / 2
                     }
                     val y = if (com.antena.tv.cursor.Puntero.activo) {
-                        (com.antena.tv.cursor.Puntero.pos.y - com.antena.tv.cursor.Puntero.origenY).toInt()
+                        anclaY.toInt()
                     } else {
                         (c.maxHeight - p.height) / 2
                     }
