@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.4.4 — 2026-10-31
+- «Dar permiso» (Archivos) ya no falla en silencio: si el televisor no tiene la pantalla de «Acceso a todos los archivos» prueba otras de Ajustes y, si ninguna existe, muestra en pantalla el comando ADB para concederlo.
+- El permiso se vuelve a comprobar solo al regresar de Ajustes; «Ya lo di: actualizar» ahora avisa si todavía no está concedido.
+
 ## 1.4.3 — 2026-10-31
 - Diálogo «¿Salir de Coco Surf?»: el foco ya no se escapa. ↑ y ↓ no hacen nada y ← → alternan entre Cancelar y Salir, así que no se puede perder el control hacia la página.
 

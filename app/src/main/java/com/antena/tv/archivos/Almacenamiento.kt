@@ -42,19 +42,29 @@ object Almacenamiento {
         if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() else true
 
     /** Abre la pantalla de Android donde se concede «Acceso a todos los archivos» a la app. */
-    fun pedirAccesoTotal(c: Context) {
-        runCatching {
-            if (Build.VERSION.SDK_INT >= 30) {
-                c.startActivity(
-                    Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + c.packageName))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
-        }.onFailure {
-            runCatching {
-                c.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    fun pedirAccesoTotal(c: Context): String? {
+        val pkg = Uri.parse("package:" + c.packageName)
+        // Muchos televisores no traen la pantalla específica: se prueba una cadena de pantallas de Ajustes.
+        val intentos = listOf(
+            Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, pkg),
+            Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
+            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg),
+            Intent(Settings.ACTION_SETTINGS),
+        )
+        for ((i, intento) in intentos.withIndex()) {
+            val ok = runCatching { c.startActivity(intento.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                .onFailure { Bitacora.add(LogKind.ERROR, "Permiso archivos: intento $i falló: ${it.javaClass.simpleName}") }
+                .isSuccess
+            if (ok) {
+                return when (i) {
+                    0 -> null
+                    1 -> "Busca «Coco Surf» en la lista y activa «Permitir el acceso a todos los archivos»."
+                    2 -> "Entra en «Permisos» → «Archivos y multimedia» (o «Almacenamiento») y permite todo."
+                    else -> "Busca Apps → Coco Surf → Permisos → Almacenamiento."
+                }
             }
         }
+        return "Este televisor no tiene esa pantalla de Ajustes. Por ADB: adb shell appops set ${c.packageName} MANAGE_EXTERNAL_STORAGE allow"
     }
 
     fun volumenes(c: Context): List<Volumen> {

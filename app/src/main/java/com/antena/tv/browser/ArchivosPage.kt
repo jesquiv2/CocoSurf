@@ -78,6 +78,20 @@ fun ArchivosPage(
     var accesoTotal by remember { mutableStateOf(Almacenamiento.tieneAccesoTotal()) }
     var version by remember { mutableStateOf(0) }
 
+    // Al volver de Ajustes se revisa solo el permiso, sin pulsar nada.
+    val ciclo = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    androidx.compose.runtime.DisposableEffect(ciclo) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                val ahora = Almacenamiento.tieneAccesoTotal()
+                if (ahora && !accesoTotal) mensaje = "Permiso concedido."
+                accesoTotal = ahora
+            }
+        }
+        ciclo.addObserver(obs)
+        onDispose { ciclo.removeObserver(obs) }
+    }
+
     LaunchedEffect(actual, version) {
         val dir = actual ?: return@LaunchedEffect
         entradas = withContext(Dispatchers.IO) { Almacenamiento.listar(dir) }
@@ -197,8 +211,15 @@ fun ArchivosPage(
                             )
                             Spacer(Modifier.height(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                RemoteChip(label = "Dar permiso", small = true, accent = true, onClick = { Almacenamiento.pedirAccesoTotal(ctx) })
-                                RemoteChip(label = "Ya lo di: actualizar", small = true, onClick = { accesoTotal = Almacenamiento.tieneAccesoTotal() })
+                                RemoteChip(label = "Dar permiso", small = true, accent = true, onClick = { mensaje = Almacenamiento.pedirAccesoTotal(ctx) })
+                                RemoteChip(
+                                    label = "Ya lo di: actualizar",
+                                    small = true,
+                                    onClick = {
+                                        accesoTotal = Almacenamiento.tieneAccesoTotal()
+                                        mensaje = if (accesoTotal) "Permiso concedido." else "Todavía no está concedido."
+                                    },
+                                )
                             }
                         }
                     }
