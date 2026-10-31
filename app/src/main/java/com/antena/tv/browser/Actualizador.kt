@@ -28,7 +28,7 @@ object Actualizador {
         data object Inactivo : Estado()
         data object Buscando : Estado()
         data class AlDia(val version: String) : Estado()
-        data class Nueva(val version: String, val urlApk: String, val notas: String, val mb: Long) : Estado()
+        data class Nueva(val version: String, val urlApk: String, val notas: String, val mb: Long, val bytes: Long = 0L) : Estado()
         /** No hay Release con APK (o el repositorio es privado y GitHub la oculta). */
         data class SinPublicar(val detalle: String) : Estado()
         data class Error(val motivo: String) : Estado()
@@ -50,6 +50,25 @@ object Actualizador {
             if (d != 0) return d > 0
         }
         return false
+    }
+
+    private fun carpeta(c: Context): File = (c.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: c.filesDir).also { it.mkdirs() }
+
+    private fun apkDe(c: Context, version: String) = File(carpeta(c), "CocoSurf-$version.apk")
+
+    /**
+     * Borra los instaladores que ya no sirven: los de una versión igual o anterior a la instalada, los
+     * parciales de una descarga cortada y (si se indica) los de otra versión. Así no se acumulan APK de cientos de MB.
+     */
+    fun limpiar(c: Context, conservar: String? = null) {
+        val actual = versionActual(c)
+        val patron = Regex("CocoSurf-(.+)\\.apk(\\.part)?")
+        carpeta(c).listFiles()?.forEach { f ->
+            val n = f.name
+            val v = patron.matchEntire(n)?.groupValues?.get(1) ?: return@forEach
+            val sobra = n.endsWith(".part") || !esMasNueva(v, actual) || (conservar != null && v != conservar)
+            if (sobra && f.delete()) Bitacora.add(LogKind.SISTEMA, "Actualizador: borrado $n")
+        }
     }
 
     fun versionActual(c: Context): String =
@@ -74,12 +93,14 @@ object Actualizador {
                             val assets = j.optJSONArray("assets")
                             var url: String? = null
                             var tam = 0L
+                            var bytes = 0L
                             if (assets != null) {
                                 for (i in 0 until assets.length()) {
                                     val a = assets.getJSONObject(i)
                                     if (a.optString("name").endsWith(".apk", ignoreCase = true)) {
                                         url = a.optString("browser_download_url")
-                                        tam = a.optLong("size") / (1024 * 1024)
+                                        bytes = a.optLong("size")
+                                        tam = bytes / (1024 * 1024)
                                         break
                                     }
                                 }
@@ -88,7 +109,13 @@ object Actualizador {
                                 tag.isBlank() -> Estado.SinPublicar("la Release no trae versión")
                                 !esMasNueva(tag, versionActual(c)) -> Estado.AlDia(versionActual(c))
                                 url == null -> Estado.SinPublicar("la versión $tag no trae un archivo .apk")
-                                else -> Estado.Nueva(tag.removePrefix("v"), url, j.optString("body"), tam)
+                                else -> {
+                                    val v = tag.removePrefix("v")
+                                    val apk = apkDe(c, v)
+                                    // Ya descargado en una sesión anterior (mismo tamaño que en GitHub): no se baja otra vez.
+                                    if (bytes > 0 && apk.length() == bytes) Estado.Listo(v, apk)
+                                    else Estado.Nueva(v, url, j.optString("body"), tam, bytes)
+                                }
                             }
                         }
                         404 -> Estado.SinPublicar("GitHub no muestra Releases (no hay ninguna o el repositorio es privado)")
@@ -100,6 +127,13 @@ object Actualizador {
             }.getOrElse { Estado.Error(it.message ?: it.javaClass.simpleName) }
         }
         estado = r
+        withContext(Dispatchers.IO) {
+            when (r) {
+                is Estado.Listo -> limpiar(c, conservar = r.version)
+                is Estado.Nueva, is Estado.AlDia -> limpiar(c)
+                else -> Unit
+            }
+        }
         if (r is Estado.Nueva) Bitacora.add(LogKind.SISTEMA, "Actualización disponible: ${r.version} (${r.mb} MB)")
         return r
     }
@@ -109,9 +143,8 @@ object Actualizador {
         estado = Estado.Descargando(nueva.version, 0)
         val r = withContext(Dispatchers.IO) {
             runCatching {
-                val carpeta = c.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: c.filesDir
-                carpeta.mkdirs()
-                val destino = File(carpeta, "CocoSurf-${nueva.version}.apk")
+                val destino = apkDe(c, nueva.version)
+                val parcial = File(destino.path + ".part")
                 val con = (URL(nueva.urlApk).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 10000
                     readTimeout = 30000
@@ -123,7 +156,7 @@ object Actualizador {
                     var hecho = 0L
                     var ultimo = -1
                     con.inputStream.use { entrada ->
-                        destino.outputStream().use { salida ->
+                        parcial.outputStream().use { salida ->
                             val buf = ByteArray(64 * 1024)
                             while (true) {
                                 val n = entrada.read(buf)
@@ -140,6 +173,12 @@ object Actualizador {
                             }
                         }
                     }
+                    if (nueva.bytes > 0 && parcial.length() != nueva.bytes) {
+                        parcial.delete()
+                        return@runCatching Estado.Error("La descarga quedó incompleta; vuelve a intentarlo.")
+                    }
+                    destino.delete()
+                    parcial.renameTo(destino)
                     Estado.Listo(nueva.version, destino)
                 } finally {
                     con.disconnect()

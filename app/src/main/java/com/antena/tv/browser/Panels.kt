@@ -882,6 +882,8 @@ fun MenuDropdown(
     /** Cierra la aplicación. */
     onSalir: () -> Unit,
     version: String,
+    /** Versión nueva disponible (o ya descargada): se avisa arriba del menú. */
+    actualizacion: String? = null,
 ) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { first.requestFocus() }
@@ -916,6 +918,9 @@ fun MenuDropdown(
             }
         }
         MenuDivisor()
+        if (actualizacion != null) {
+            MenuRow("Actualización $actualizacion", icon = ToolIcon.Download, value = "Instalar", onClick = onAcerca)
+        }
         Box(Modifier.focusRequester(first)) {
             MenuRow("Favoritos", icon = ToolIcon.Star, onClick = onFavorites)
         }

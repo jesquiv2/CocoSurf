@@ -941,14 +941,19 @@ fun BrowserScreen() {
         if (precalentarMotor && tabs.firstOrNull { it.id == activeId }?.url?.startsWith("http") != true) {
             GeckoMotor.precalentar(context)
         }
-        // Una vez al día se mira si hay versión nueva (sin molestar si no la hay).
-        val ultimaBusqueda = withContext(Dispatchers.IO) { db.settingDao().get("act_ultima")?.toLongOrNull() ?: 0L }
-        if (System.currentTimeMillis() - ultimaBusqueda > 24L * 3600_000L) {
-            scope.launch {
-                delay(20_000)
+        // En segundo plano: al abrir (a los 20 s) y luego cada 6 h se mira si hay versión nueva.
+        // Si la hay, el botón del menú lleva un punto y el menú un renglón «Actualización».
+        scope.launch {
+            delay(20_000)
+            var avisada: String? = null
+            while (true) {
                 val r = Actualizador.buscar(context)
-                withContext(Dispatchers.IO) { db.settingDao().put(Setting("act_ultima", System.currentTimeMillis().toString())) }
-                if (r is Actualizador.Estado.Nueva) toast("Hay una versión nueva (${r.version}): Menú → Acerca de Coco Surf")
+                val v = (r as? Actualizador.Estado.Nueva)?.version ?: (r as? Actualizador.Estado.Listo)?.version
+                if (v != null && v != avisada) {
+                    avisada = v
+                    toast("Hay una versión nueva ($v): Menú → Actualización")
+                }
+                delay(6L * 3600_000L)
             }
         }
         refreshData()
@@ -2227,6 +2232,17 @@ fun BrowserScreen() {
                         enabled = chromeVisible,
                         onClick = { overlay = if (overlay is Overlay.Menu) null else Overlay.Menu },
                     )
+                    // Punto de aviso: hay una versión nueva (o descargada y sin instalar).
+                    if (Actualizador.estado.let { it is Actualizador.Estado.Nueva || it is Actualizador.Estado.Listo || it is Actualizador.Estado.Descargando }) {
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 2.dp, end = 2.dp)
+                                .size(11.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(Ambar),
+                        )
+                    }
                 }
             }
 
@@ -2495,6 +2511,12 @@ fun BrowserScreen() {
         }
 
         // ── Overlays ──
+        // Los paneles y el menú cuelgan de la barra superior: suben con ella cuando se esconde y bajan cuando vuelve.
+        val topPanel by androidx.compose.animation.core.animateDpAsState(
+            targetValue = if (chromeVisible) 104.dp else 16.dp,
+            animationSpec = androidx.compose.animation.core.tween(180),
+            label = "topPanel",
+        )
         when (val ov = overlay) {
             is Overlay.Panel -> {
                 Box(
@@ -2505,10 +2527,10 @@ fun BrowserScreen() {
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 104.dp, end = 16.dp)
+                        .padding(top = topPanel, end = 16.dp)
                         .pointerInput(Unit) { detectTapGestures { } },
                 ) {
-                    val altoMax = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp - 124.dp
+                    val altoMax = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp - topPanel - 20.dp
                     contenidoPanel(ov.tipo, false, Modifier.width(PanelAncho).heightIn(max = altoMax))
                 }
             }
@@ -2526,7 +2548,7 @@ fun BrowserScreen() {
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
-                        .padding(top = 104.dp, end = 16.dp)
+                        .padding(top = topPanel, end = 16.dp)
                         .pointerInput(Unit) { detectTapGestures { } },
                 ) {
                     MenuDropdown(
@@ -2553,6 +2575,12 @@ fun BrowserScreen() {
                         },
                         onSalir = { confirmarSalida = true; closeOverlay() },
                         version = version ?: "—",
+                        actualizacion = when (val e = Actualizador.estado) {
+                            is Actualizador.Estado.Nueva -> e.version
+                            is Actualizador.Estado.Descargando -> e.version
+                            is Actualizador.Estado.Listo -> e.version
+                            else -> null
+                        },
                     )
                 }
             }

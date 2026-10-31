@@ -15,8 +15,8 @@ android {
         // (Xiaomi, Android 11 / API 30) queda cubierta.
         minSdk = 26
         targetSdk = 34
-        versionCode = 17
-        versionName = "1.4.0"
+        versionCode = 18
+        versionName = "1.4.1"
 
         ndk {
             // M5 · GeckoView arrastra nativos por ABI; sin filtro el APK sale

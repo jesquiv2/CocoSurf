@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.4.1 — 2026-10-31
+- Actualizaciones en segundo plano: se busca al abrir (a los 20 s) y cada 6 h. Si hay versión nueva, el botón del menú lleva un punto ámbar y el menú un renglón «Actualización X» arriba.
+- El instalador descargado se conserva entre sesiones: si ya está completo (mismo tamaño que en GitHub) la app lo reconoce como «Listo» y no lo baja otra vez. Se descarga a un archivo parcial y solo se da por bueno si queda completo.
+- Limpieza: al comprobar se borran los APK de versiones ya instaladas o viejas y los parciales, para no acumular cientos de MB.
+- Paneles (Descargas, Favoritos, Historial…) y menú: suben cuando la barra superior se esconde y bajan cuando vuelve, ya no quedan flotando solos.
+
 ## 1.4.0 — 2026-10-31
 - Archivos: nueva página (menú → Archivos) para explorar las descargas y todo el almacenamiento (pide «Acceso a todos los archivos»), instalar APK, abrir archivos con otra app, crear carpetas y eliminar (mantener OK).
 - Reproductor interno de video y audio (ExoPlayer): OK pausa, ← → saltan 10 s (mantenidas, 30 s), Atrás cierra.
