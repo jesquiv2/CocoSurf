@@ -75,15 +75,22 @@ fun ArchivosPage(
     var entradas by remember { mutableStateOf<List<File>?>(emptyList()) }
     var mensaje by remember { mutableStateOf<String?>(null) }
     var porBorrar by remember { mutableStateOf<File?>(null) }
-    var accesoTotal by remember { mutableStateOf(Almacenamiento.tieneAccesoTotal()) }
+    var accesoTotal by remember { mutableStateOf(Almacenamiento.tieneAccesoTotal(ctx)) }
     var version by remember { mutableStateOf(0) }
+    // El diálogo normal de Android: «¿Permitir que Coco Surf acceda a los archivos?».
+    val pedirRuntime = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+    ) {
+        accesoTotal = Almacenamiento.tieneAccesoTotal(ctx)
+        mensaje = if (accesoTotal) "Permiso concedido." else "Permiso denegado. Prueba «Acceso total (Ajustes)»."
+    }
 
     // Al volver de Ajustes se revisa solo el permiso, sin pulsar nada.
     val ciclo = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
     androidx.compose.runtime.DisposableEffect(ciclo) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
             if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                val ahora = Almacenamiento.tieneAccesoTotal()
+                val ahora = Almacenamiento.tieneAccesoTotal(ctx)
                 if (ahora && !accesoTotal) mensaje = "Permiso concedido."
                 accesoTotal = ahora
             }
@@ -205,18 +212,19 @@ fun ArchivosPage(
                         Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
                             Text(
                                 "Android pide un permiso especial para ver todo el almacenamiento (no sólo las descargas de la app). " +
-                                    "Pulsa «Dar permiso», activa el interruptor de Coco Surf y vuelve.",
+                                    "Pulsa «Dar permiso» y acepta el aviso de Android.",
                                 style = AntenaType.meta,
                                 color = FosforoTenue,
                             )
                             Spacer(Modifier.height(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                RemoteChip(label = "Dar permiso", small = true, accent = true, onClick = { mensaje = Almacenamiento.pedirAccesoTotal(ctx) })
+                                RemoteChip(label = "Dar permiso", small = true, accent = true, onClick = { pedirRuntime.launch(Almacenamiento.permisosRuntime()) })
+                                RemoteChip(label = "Acceso total (Ajustes)", small = true, onClick = { mensaje = Almacenamiento.pedirAccesoTotal(ctx) })
                                 RemoteChip(
                                     label = "Ya lo di: actualizar",
                                     small = true,
                                     onClick = {
-                                        accesoTotal = Almacenamiento.tieneAccesoTotal()
+                                        accesoTotal = Almacenamiento.tieneAccesoTotal(ctx)
                                         mensaje = if (accesoTotal) "Permiso concedido." else "Todavía no está concedido."
                                     },
                                 )

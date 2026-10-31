@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.4.5 — 2026-10-31
+- Archivos: «Dar permiso» ahora muestra el diálogo normal de Android («¿Permitir el acceso a archivos?») en vez de mandar a Ajustes; el acceso total por Ajustes queda como botón aparte.
+
 ## 1.4.4 — 2026-10-31
 - «Dar permiso» (Archivos) ya no falla en silencio: si el televisor no tiene la pantalla de «Acceso a todos los archivos» prueba otras de Ajustes y, si ninguna existe, muestra en pantalla el comando ADB para concederlo.
 - El permiso se vuelve a comprobar solo al regresar de Ajustes; «Ya lo di: actualizar» ahora avisa si todavía no está concedido.

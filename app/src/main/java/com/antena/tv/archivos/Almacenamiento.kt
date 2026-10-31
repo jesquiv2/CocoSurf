@@ -38,8 +38,22 @@ object Almacenamiento {
     }
 
     /** ¿La app puede ver todo el almacenamiento? (Android 11+: «Acceso a todos los archivos»). */
-    fun tieneAccesoTotal(): Boolean =
-        if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() else true
+    fun tieneAccesoTotal(c: Context): Boolean =
+        if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() || tienePermisoRuntime(c) else true
+
+    /** Permisos que Android pide con su diálogo normal, según la versión. */
+    fun permisosRuntime(): Array<String> = when {
+        Build.VERSION.SDK_INT >= 33 -> arrayOf(
+            android.Manifest.permission.READ_MEDIA_VIDEO,
+            android.Manifest.permission.READ_MEDIA_AUDIO,
+            android.Manifest.permission.READ_MEDIA_IMAGES,
+        )
+        else -> arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+
+    fun tienePermisoRuntime(c: Context): Boolean = permisosRuntime().all {
+        androidx.core.content.ContextCompat.checkSelfPermission(c, it) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
 
     /** Abre la pantalla de Android donde se concede «Acceso a todos los archivos» a la app. */
     fun pedirAccesoTotal(c: Context): String? {
