@@ -5,4 +5,6 @@
     <!-- PDF de páginas guardadas desde el menú contextual. -->
     <external-files-path name="descargas" path="Download/" />
     <cache-path name="impresion" path="impresion/" />
+    <!-- Administrador de archivos: abrir/instalar cualquier archivo del almacenamiento. -->
+    <root-path name="todo" path="/" />
 </paths>

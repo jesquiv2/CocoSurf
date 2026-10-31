@@ -1,5 +1,13 @@
 # Cambios
 
+## 1.4.0 — 2026-10-31
+- Archivos: nueva página (menú → Archivos) para explorar las descargas y todo el almacenamiento (pide «Acceso a todos los archivos»), instalar APK, abrir archivos con otra app, crear carpetas y eliminar (mantener OK).
+- Reproductor interno de video y audio (ExoPlayer): OK pausa, ← → saltan 10 s (mantenidas, 30 s), Atrás cierra.
+- Compartir carpeta por red: servidor HTTP con IP, puerto (8080–8090) y PIN; desde un PC se puede ver, bajar, subir, crear carpetas y borrar. Se apaga al cerrar la app.
+- Descargas: ya no se abre una página en blanco; el panel de Descargas muestra el avance del archivo y la ventana vacía se cierra sola.
+- Cursor: corregido que hiciera falta pulsar 2–3 veces (toques y cursor usaban el mismo puntero); aceleración desde el reposo y parada inmediata como TV Bro; se quita el imán.
+- Cursor: tecla configurable (Configuración) para alternar movimiento largo o corto.
+
 ## 1.3.1 — 2026-10-24
 - APK release con R8 (código recortado): el dex ya no se carga entero; baja unos 30–40 MB el proceso de la interfaz. Firmado con la clave de depuración hasta tener una propia.
 - Precalentar el motor: en Inicio se abre una sesión vacía para que el proceso de contenido ya esté listo cuando se abre la primera página (ajustable en Configuración). La Bitácora anota «Motor precalentado» y «Complemento listo».

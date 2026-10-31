@@ -162,6 +162,7 @@ private const val INTERNA_DESCARGAS = "cocosurf://descargas"
 private const val INTERNA_CONFIG = "cocosurf://config"
 private const val INTERNA_ACERCA = "cocosurf://acerca"
 private const val INTERNA_CLAVES = "cocosurf://claves"
+private const val INTERNA_ARCHIVOS = "cocosurf://archivos"
 
 /** Título de una vista interna; `null` cuando la URL es de una página web. */
 private fun tituloInterna(url: String): String? = when (url) {
@@ -171,6 +172,7 @@ private fun tituloInterna(url: String): String? = when (url) {
     INTERNA_CONFIG -> "Configuración"
     INTERNA_ACERCA -> "Acerca de"
     INTERNA_CLAVES -> "Contraseñas"
+    INTERNA_ARCHIVOS -> "Archivos"
     else -> null
 }
 
@@ -275,6 +277,9 @@ fun BrowserScreen() {
     // Recordar las pestañas al cerrar la app y traerlas al abrirla.
     var restaurarPestanas by remember { mutableStateOf(true) }
     var pestanasCargadas by remember { mutableStateOf(false) }
+    // Reproductor de video/audio a pantalla completa y carpeta con la que se abre «Archivos».
+    var reproductorArchivo by remember { mutableStateOf<java.io.File?>(null) }
+    var carpetaArchivos by remember { mutableStateOf<java.io.File?>(null) }
     var precalentarMotor by remember { mutableStateOf(true) }
     // Contraseñas: lo que Gecko pregunta (guardar) u ofrece (rellenar) en la página activa.
     var claveGuardar by remember { mutableStateOf<PeticionGuardar?>(null) }
@@ -359,8 +364,33 @@ fun BrowserScreen() {
         }
     }
 
+    /**
+     * Una descarga acaba de empezar: se abre el panel de Descargas (junto a su botón) para ver el avance
+     * y, si la pidió una ventana emergente que se quedó en blanco, esa pestaña se cierra sola.
+     */
+    fun descargaIniciada(idTab: Int) {
+        val t = tabs.firstOrNull { it.id == idTab }
+        val enBlanco = idTab in popupIds || t == null || t.url.isBlank() || t.url == "about:blank"
+        if (enBlanco && tabs.size > 1) {
+            scope.launch {
+                delay(600)
+                popupIds.remove(idTab)
+                webTabs.remove(idTab)?.destroy()
+                val idx = tabs.indexOfFirst { it.id == idTab }
+                if (idx >= 0 && tabs.size > 1) {
+                    tabs = tabs.filterNot { it.id == idTab }
+                    if (activeId == idTab) activeId = tabs[minOf(idx, tabs.lastIndex)].id
+                }
+            }
+        }
+        if (overlay == null || overlay is Overlay.Panel) {
+            refreshData()
+            overlay = Overlay.Panel(PanelTipo.DESCARGAS)
+        }
+    }
+
     // Fase 4 · enlaces descargables pulsados en la página.
-    fun handleLink(url: String): Boolean {
+    fun handleLink(url: String, idTab: Int = activeId): Boolean {
         val path = runCatching { android.net.Uri.parse(url).path ?: "" }.getOrDefault("").lowercase()
         return when {
             path.endsWith(".xpi") -> {
@@ -376,16 +406,16 @@ fun BrowserScreen() {
                     pendingPdf.value = entry
                     scope.launch(Dispatchers.IO) { db.downloadDao().insert(entry) }
                 }
+                descargaIniciada(idTab)
                 true
             }
-            MEDIA_EXTS.any { path.endsWith(it) } -> {
-                overlay = Overlay.Media(url)
-                true
-            }
-            FILE_EXTS.any { path.endsWith(it) } -> {
+            // Videos, audios y archivos: se descargan (con su avance a la vista). Se reproducen o
+            // instalan después desde Archivos; antes se abría un reproductor que no tenía sentido.
+            MEDIA_EXTS.any { path.endsWith(it) } || FILE_EXTS.any { path.endsWith(it) } -> {
                 startSystemDownload(context, url, null, null) { entry ->
                     scope.launch(Dispatchers.IO) { db.downloadDao().insert(entry) }
                 }
+                descargaIniciada(idTab)
                 true
             }
             else -> false
@@ -409,7 +439,7 @@ fun BrowserScreen() {
                 )
             }
             if (id == activeId) GeckoMotor.activarSesion(w.session)
-            w.onIntercept = { u -> handleLink(u) }
+            w.onIntercept = { u -> handleLink(u, id) }
             w.onClaveGuardar = { p ->
                 claveGuardar?.responder?.invoke(false)
                 claveGuardar = PeticionGuardar(p.entry, p.actualiza) { si -> claveGuardar = null; p.responder(si) }
@@ -498,6 +528,7 @@ fun BrowserScreen() {
                     startSystemDownload(context, url, mime, disposition) { entry ->
                         scope.launch(Dispatchers.IO) { db.downloadDao().insert(entry) }
                     }
+                    descargaIniciada(id)
                 }
             }
             w.onScroll = { y ->
@@ -562,6 +593,11 @@ fun BrowserScreen() {
     // Pestañas web cuyo motor se soltó para ahorrar memoria: siguen en la tira y
     // se recargan al volver a ellas.
     val ultimoUso = remember { mutableMapOf<Int, Long>() }
+
+    fun guardarTeclaPrecision() {
+        val t = Puntero.teclaPrecision
+        scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("cursor_tecla_prec", t.toString())) }
+    }
 
     /** Guarda la configuración del monitor (posición, cifras, tecla…). */
     fun guardarMonitor() {
@@ -865,7 +901,7 @@ fun BrowserScreen() {
         if (ancladas != null) extAncladas = ancladas.split(',').filter { it.isNotBlank() }.toSet()
         // Control remoto, modo de página y monitor de recursos.
         val otros = withContext(Dispatchers.IO) {
-            listOf("cursor_vel", "modo_pagina", "mon_pos", "mon_graf", "mon_met", "mon_tecla", "mon_vis", "iman_cursor")
+            listOf("cursor_vel", "modo_pagina", "mon_pos", "mon_graf", "mon_met", "mon_tecla", "mon_vis", "cursor_tecla_prec")
                 .map { db.settingDao().get(it) }
         }
         otros[0]?.let { velocidadId = it; Puntero.factorVel = factorDeVelocidad(it) }
@@ -875,7 +911,7 @@ fun BrowserScreen() {
         otros[4]?.let { MonitorConfig.metricas = it.split(',').filter { s -> s.isNotBlank() }.toSet() }
         otros[5]?.toIntOrNull()?.let { MonitorConfig.tecla = it }
         otros[6]?.let { MonitorConfig.visible = it == "1" }
-        otros[7]?.let { Puntero.imanActivo = it != "0" }
+        otros[7]?.toIntOrNull()?.let { Puntero.teclaPrecision = it }
         // Pestañas de la sesión anterior.
         val guardadas = withContext(Dispatchers.IO) {
             Triple(db.settingDao().get("restaurar_pestanas"), db.settingDao().get("pestanas_guardadas"), db.settingDao().get("pestana_activa"))
@@ -1254,6 +1290,8 @@ fun BrowserScreen() {
             descartarFondo(if (nivel >= 15) 1 else minOf(2, Memoria.maxVivas(context)), "aviso del sistema")
         }
         actividad?.alMonitorCambio = { guardarMonitor() }
+        actividad?.alPrecisionCambio = { guardarTeclaPrecision() }
+        Puntero.alModoFino = { fino -> toast(if (fino) "Cursor corto (preciso)" else "Cursor largo (rápido)") }
         onDispose {
             actividad?.alRecortarMemoria = null
             actividad?.alMonitorCambio = null
@@ -1518,6 +1556,23 @@ fun BrowserScreen() {
         scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("precalentar", if (si) "1" else "0")) }
     }
 
+    fun abrirDescarga(d: DownloadEntry) {
+        val f = if (d.dmId < 0) java.io.File(d.url.removePrefix("file://"))
+        else java.io.File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), d.title)
+        if (!f.exists()) { openDownloadedFile(context, d); return }
+        when (com.antena.tv.archivos.Almacenamiento.tipoDe(f)) {
+            com.antena.tv.archivos.Tipo.VIDEO, com.antena.tv.archivos.Tipo.AUDIO -> { closeOverlay(); reproductorArchivo = f }
+            com.antena.tv.archivos.Tipo.APK -> com.antena.tv.archivos.Almacenamiento.instalarApk(context, f)?.let { toast(it) }
+            else -> openDownloadedFile(context, d)
+        }
+    }
+
+    fun irACarpetaDescargas() {
+        carpetaArchivos = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
+        closeOverlay()
+        abrirInterna(INTERNA_ARCHIVOS)
+    }
+
     fun elegirRestaurar(si: Boolean) {
         restaurarPestanas = si
         scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("restaurar_pestanas", if (si) "1" else "0")) }
@@ -1635,7 +1690,7 @@ fun BrowserScreen() {
                 fijado = fijado,
                 onFijar = alFijar,
                 onCerrar = alCerrar,
-                onAbrirArchivo = { openDownloadedFile(context, it) },
+                onAbrirArchivo = { abrirDescarga(it) },
                 onEliminar = { d ->
                     deleteDownloadedFile(context, d)
                     scope.launch(Dispatchers.IO) {
@@ -1643,7 +1698,7 @@ fun BrowserScreen() {
                         refreshData()
                     }
                 },
-                onCarpeta = { openDownloadsFolder(context) },
+                onCarpeta = { irACarpetaDescargas() },
                 onPagina = {
                     overlay = null
                     abrirInterna(INTERNA_DESCARGAS)
@@ -1770,7 +1825,6 @@ fun BrowserScreen() {
     SideEffect {
         // Con el diálogo abierto, las flechas son de sus botones y el imán se apaga.
         Puntero.pausado = confirmarSalida
-        Puntero.imanBloqueado = overlay != null || confirmarSalida
     }
     BackHandler(enabled = true) {
         when {
@@ -2255,7 +2309,7 @@ fun BrowserScreen() {
                             )
                             INTERNA_DESCARGAS -> DownloadsPage(
                                 entries = downloads,
-                                onOpenFile = { openDownloadedFile(context, it) },
+                                onOpenFile = { abrirDescarga(it) },
                                 onDelete = { d ->
                                     deleteDownloadedFile(context, d)
                                     scope.launch(Dispatchers.IO) {
@@ -2263,7 +2317,7 @@ fun BrowserScreen() {
                                         refreshData()
                                     }
                                 },
-                                onOpenFolder = { openDownloadsFolder(context) },
+                                onOpenFolder = { irACarpetaDescargas() },
                                 onBack = { closeTab(activeId) },
                                 backLabel = "✕ Cerrar",
                             )
@@ -2273,6 +2327,11 @@ fun BrowserScreen() {
                                 onAbrir = { u -> abrirDesdeVistaInterna(u) },
                             )
                             INTERNA_CLAVES -> ClavesPage(onBack = { closeTab(activeId) })
+                            INTERNA_ARCHIVOS -> ArchivosPage(
+                                onClose = { closeTab(activeId) },
+                                onReproducir = { reproductorArchivo = it },
+                                carpetaInicial = carpetaArchivos,
+                            )
                             INTERNA_CONFIG -> ConfiguracionPage(
                                 engines = engines,
                                 engineId = engineId,
@@ -2304,7 +2363,7 @@ fun BrowserScreen() {
                                 modoPaginaId = modoPaginaId,
                                 onModoPagina = ::elegirModoPagina,
                                 onMonitorCambio = ::guardarMonitor,
-                                onImanCambio = { val v = Puntero.imanActivo; scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("iman_cursor", if (v) "1" else "0")) } },
+                                onPrecisionCambio = ::guardarTeclaPrecision,
                                 restaurarPestanas = restaurarPestanas,
                                 onRestaurarPestanas = ::elegirRestaurar,
                                 precalentar = precalentarMotor,
@@ -2485,6 +2544,7 @@ fun BrowserScreen() {
                         onConfig = { abrirInterna(INTERNA_CONFIG) },
                         onAcerca = { abrirInterna(INTERNA_ACERCA) },
                         onClaves = { abrirInterna(INTERNA_CLAVES) },
+                        onArchivos = { carpetaArchivos = null; abrirInterna(INTERNA_ARCHIVOS) },
                         onSystem = { overlay = Overlay.System },
                         onDiagnostics = { overlay = Overlay.Diagnostics },
                         onBitacora = {
@@ -2957,6 +3017,10 @@ fun BrowserScreen() {
             }
         }
 
+        reproductorArchivo?.let { f ->
+            Box(Modifier.fillMaxSize().zIndex(60f)) { ReproductorLocal(f) { reproductorArchivo = null } }
+        }
+
         // Contraseñas: ofrecer guardar o elegir (tarjeta bajo la barra, arriba al centro).
         claveGuardar?.let { ClaveGuardarCard(it, Modifier.align(Alignment.TopCenter).padding(top = 76.dp).zIndex(25f)) }
         claveElegir?.let { ClaveElegirCard(it, Modifier.align(Alignment.TopCenter).padding(top = 76.dp).zIndex(25f)) }
@@ -3278,7 +3342,7 @@ private fun TabChip(
             // la pestaña por accidente) y con el mando basta mantener OK.
             Box(
                 Modifier
-                    .size(if (compact) 14.dp else 24.dp)
+                    .size(if (compact) 22.dp else 34.dp)
                     .onKeyEvent { ev ->
                         if (ev.key == Key.DirectionCenter || ev.key == Key.Enter) {
                             if (ev.type == KeyEventType.KeyDown) onClose()
@@ -3320,6 +3384,7 @@ private fun TabIcono(url: String, active: Boolean, compact: Boolean) {
             INTERNA_CONFIG -> ToolIcon.Gear
             INTERNA_ACERCA -> ToolIcon.Info
             INTERNA_CLAVES -> ToolIcon.Lock
+            INTERNA_ARCHIVOS -> ToolIcon.Folder
             else -> ToolIcon.Home
         }
         ToolIconGlyph(kind = icono, color = if (active) Ambar else Azul, size = lado)

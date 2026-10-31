@@ -68,7 +68,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         // Cierre a propósito (el usuario salió); si el sistema mata el proceso no llega aquí.
-        if (isFinishing) Bitacora.cierreLimpio()
+        if (isFinishing) {
+            com.antena.tv.archivos.Compartir.detener()
+            Bitacora.cierreLimpio()
+        }
         super.onDestroy()
     }
 
@@ -83,7 +86,29 @@ class MainActivity : ComponentActivity() {
     /** El monitor cambió (se abrió/cerró o se asignó otra tecla): la pantalla lo guarda. */
     var alMonitorCambio: (() -> Unit)? = null
 
+    /** Se asignó otra tecla al cursor preciso: la pantalla la guarda. */
+    var alPrecisionCambio: (() -> Unit)? = null
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Tecla del cursor preciso: asignarla (modo captura) o usarla.
+        if (Puntero.capturandoPrecision) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+                    Puntero.capturandoPrecision = false
+                } else if (!MonitorConfig.reservada(event.keyCode) && event.keyCode != MonitorConfig.tecla) {
+                    Puntero.teclaPrecision = event.keyCode
+                    Puntero.capturandoPrecision = false
+                    alPrecisionCambio?.invoke()
+                }
+            }
+            return true
+        }
+        if (Puntero.teclaPrecision != 0 && event.keyCode == Puntero.teclaPrecision &&
+            !MonitorConfig.reservada(event.keyCode)
+        ) {
+            if (event.action == KeyEvent.ACTION_UP) Puntero.alternarModoFino()
+            return true
+        }
         // Tecla rápida del monitor de recursos: asignarla (modo captura) o usarla.
         if (MonitorConfig.capturando) {
             if (event.action == KeyEvent.ACTION_DOWN) {

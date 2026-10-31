@@ -15,8 +15,8 @@ android {
         // (Xiaomi, Android 11 / API 30) queda cubierta.
         minSdk = 26
         targetSdk = 34
-        versionCode = 16
-        versionName = "1.3.1"
+        versionCode = 17
+        versionName = "1.4.0"
 
         ndk {
             // M5 · GeckoView arrastra nativos por ABI; sin filtro el APK sale
@@ -78,6 +78,10 @@ dependencies {
     // M5 · motor con extensiones WebExtension reales (uBO, etc.). Misma versión
     // probada en el spike: la última compatible con Kotlin 2.1.20/AGP 8.11.1/SDK 35.
     implementation("org.mozilla.geckoview:geckoview:141.0.20250806102122")
+
+    // Archivos: servidor HTTP para compartir una carpeta por la red y reproductor de video/audio local.
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
 
     // Pruebas JVM de la lógica pura (sincronización catálogo ↔ instaladas).
     testImplementation("junit:junit:4.13.2")

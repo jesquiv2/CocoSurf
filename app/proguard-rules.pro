@@ -8,3 +8,6 @@
 -dontwarn org.mozilla.**
 -dontwarn java.beans.**
 -dontwarn org.yaml.snakeyaml.**
+-dontwarn fi.iki.elonen.**
+-keep class fi.iki.elonen.** { *; }
+-dontwarn androidx.media3.**

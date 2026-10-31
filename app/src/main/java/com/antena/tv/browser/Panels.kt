@@ -94,7 +94,6 @@ import com.antena.tv.db.SearchEngine
 import com.antena.tv.log.Bitacora
 import com.antena.tv.log.LogEntry
 import com.antena.tv.log.LogKind
-import com.antena.tv.cursor.imanCursor
 import com.antena.tv.ui.ACENTOS
 import com.antena.tv.ui.Alerta
 import com.antena.tv.ui.EsquinaBoton
@@ -711,7 +710,6 @@ fun RemoteChip(
                 },
             )
             .clip(shape)
-            .imanCursor()
             .background(bg)
             .border(if (focused) 1.5.dp else 1.dp, border, shape)
             .then(if (enabled) Modifier.onKeyEvent(center) else Modifier)
@@ -880,6 +878,7 @@ fun MenuDropdown(
     onBitacora: () -> Unit,
     onAcerca: () -> Unit,
     onClaves: () -> Unit = {},
+    onArchivos: () -> Unit = {},
     /** Cierra la aplicación. */
     onSalir: () -> Unit,
     version: String,
@@ -922,6 +921,7 @@ fun MenuDropdown(
         }
         MenuRow("Historial", icon = ToolIcon.Clock, onClick = onHistory)
         MenuRow("Descargas", icon = ToolIcon.Download, onClick = onDownloads)
+        MenuRow("Archivos", icon = ToolIcon.Folder, onClick = onArchivos)
         MenuDivisor()
         MenuRow("Complementos", icon = ToolIcon.Puzzle, onClick = onComplementos)
         MenuRow("Contraseñas", icon = ToolIcon.Lock, onClick = onClaves)
@@ -1487,7 +1487,7 @@ fun ConfiguracionPage(
     modoPaginaId: String = "auto",
     onModoPagina: (String) -> Unit = {},
     onMonitorCambio: () -> Unit = {},
-    onImanCambio: () -> Unit = {},
+    onPrecisionCambio: () -> Unit = {},
     restaurarPestanas: Boolean = true,
     onRestaurarPestanas: (Boolean) -> Unit = {},
     precalentar: Boolean = true,
@@ -1623,13 +1623,36 @@ fun ConfiguracionPage(
                         OptionRow("Rápida", velocidadId == "rapida") { onVelocidad("rapida") }
                         OptionRow("Muy rápida", velocidadId == "turbo") { onVelocidad("turbo") }
                     }
-                    SeccionAjustes("Imán del cursor") {
+                    SeccionAjustes("Cursor largo y corto") {
+                        Text(
+                            "Asigna una tecla de tu mando para alternar entre el cursor largo (rápido) y el corto " +
+                                "(lento y fino, con un aro): útil para llegar a iconos pequeños como la × de las pestañas.",
+                            style = AntenaType.meta,
+                            color = FosforoTenue,
+                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 4.dp),
+                        )
                         FilaAjuste(
-                            titulo = "Centrar en los botones",
-                            descripcion = "Cuando el cursor pasa cerca de un icono o botón pequeño, se centra en él solo. Apágalo si te estorba.",
-                            onClick = { com.antena.tv.cursor.Puntero.imanActivo = !com.antena.tv.cursor.Puntero.imanActivo; onImanCambio() },
+                            titulo = "Tecla del cursor corto",
+                            descripcion = "Pulsa «Asignar» y luego la tecla del mando que quieras usar. No sirven las flechas, OK, Atrás ni Menú.",
+                            onClick = { com.antena.tv.cursor.Puntero.capturandoPrecision = true },
                         ) {
-                            Interruptor(com.antena.tv.cursor.Puntero.imanActivo, { com.antena.tv.cursor.Puntero.imanActivo = it; onImanCambio() })
+                            RemoteChip(
+                                label = when {
+                                    com.antena.tv.cursor.Puntero.capturandoPrecision -> "Pulsa una tecla…"
+                                    com.antena.tv.cursor.Puntero.teclaPrecision == 0 -> "Asignar"
+                                    else -> MonitorConfig.nombreTecla(com.antena.tv.cursor.Puntero.teclaPrecision)
+                                },
+                                small = true,
+                                accent = com.antena.tv.cursor.Puntero.capturandoPrecision,
+                                onClick = { com.antena.tv.cursor.Puntero.capturandoPrecision = true },
+                            )
+                        }
+                        if (com.antena.tv.cursor.Puntero.teclaPrecision != 0) {
+                            Separador(Modifier.padding(horizontal = 14.dp))
+                            FilaAjuste(
+                                titulo = "Quitar la tecla",
+                                onClick = { com.antena.tv.cursor.Puntero.teclaPrecision = 0; onPrecisionCambio() },
+                            ) { RemoteChip(label = "Quitar", small = true, onClick = { com.antena.tv.cursor.Puntero.teclaPrecision = 0; onPrecisionCambio() }) }
                         }
                     }
                     SeccionAjustes("Atajos del mando") {

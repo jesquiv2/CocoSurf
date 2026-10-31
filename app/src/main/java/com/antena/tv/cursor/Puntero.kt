@@ -53,6 +53,31 @@ object Puntero {
     /** Un diálogo (p. ej. «¿Salir?») pide las flechas y OK para sí: el cursor no las consume. */
     var pausado by mutableStateOf(false)
 
+    /** Lo mismo para pantallas a pantalla completa (reproductor): sus teclas no son del cursor. */
+    @Volatile
+    var pausadoExtra = false
+
+    /** Cursor «corto»: va despacio y con pasos finos, para llegar a iconos pequeños. */
+    var modoFino by mutableStateOf(false)
+
+    /** Tecla del mando que alterna entre cursor largo y corto (0 = sin asignar). */
+    var teclaPrecision by androidx.compose.runtime.mutableIntStateOf(0)
+
+    /** Esperando que el usuario pulse la tecla que se asignará al modo preciso. */
+    var capturandoPrecision by mutableStateOf(false)
+
+    /** Aviso al cambiar de modo (la pantalla lo muestra como mensaje corto). */
+    var alModoFino: (Boolean) -> Unit = {}
+
+    fun alternarModoFino() {
+        modoFino = !modoFino
+        movimiento = SystemClock.uptimeMillis()
+        alModoFino(modoFino)
+    }
+
+    /** Velocidad efectiva: en modo fino el cursor va a un tercio. */
+    private val factorEf: Float get() = if (modoFino) factorVel * 0.3f else factorVel
+
     var activo by mutableStateOf(false)
 
     /** Posición en píxeles de la ventana. */
@@ -100,68 +125,6 @@ object Puntero {
 
     fun quitarZona(id: Any) {
         zonas.remove(id)
-    }
-
-    // ── Imán: el cursor se centra solo en los botones pequeños que tiene cerca ──
-    var imanActivo by mutableStateOf(true)
-
-    /** Un panel o diálogo tapa los botones de debajo: sin imán mientras tanto. */
-    var imanBloqueado = false
-
-    private val imanes = LinkedHashMap<Any, androidx.compose.ui.geometry.Rect>()
-
-    fun registrarIman(id: Any, r: androidx.compose.ui.geometry.Rect) {
-        imanes[id] = r
-    }
-
-    fun quitarIman(id: Any) {
-        imanes.remove(id)
-    }
-
-    private fun distanciaARect(p: Offset, r: androidx.compose.ui.geometry.Rect): Float {
-        val dx = maxOf(r.left - p.x, 0f, p.x - r.right)
-        val dy = maxOf(r.top - p.y, 0f, p.y - r.bottom)
-        return Math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
-    }
-
-    /** Tras un paso hacia (dx, dy): si hay un botón pequeño justo delante, el cursor salta a su centro. */
-    private fun imantarPaso(dx: Float, dy: Float) {
-        if (!imanActivo || imanBloqueado || pulsado || modoScroll || scrollOn) return
-        val alcance = 30f * densidad
-        var mejor: androidx.compose.ui.geometry.Rect? = null
-        var dMejor = Float.MAX_VALUE
-        for (r in imanes.values) {
-            if (r.contains(pos)) continue
-            val d = distanciaARect(pos, r)
-            if (d > alcance || d >= dMejor) continue
-            val c = r.center
-            // Sólo si el paso se dirigía hacia él (no se «pega» a lo que se deja atrás).
-            if ((c.x - pos.x) * dx + (c.y - pos.y) * dy <= 0f) continue
-            mejor = r
-            dMejor = d
-        }
-        mejor?.let { irACentro(it) }
-    }
-
-    /** Al soltar la flecha: si el cursor quedó encima o muy cerca de un botón pequeño, se centra. */
-    private fun imantarReposo() {
-        if (!imanActivo || imanBloqueado || pulsado || modoScroll || scrollOn) return
-        val alcance = 16f * densidad
-        var mejor: androidx.compose.ui.geometry.Rect? = null
-        var dMejor = Float.MAX_VALUE
-        for (r in imanes.values) {
-            val d = distanciaARect(pos, r)
-            if (d > alcance || d >= dMejor) continue
-            mejor = r
-            dMejor = d
-        }
-        mejor?.let { if (Math.hypot((it.center.x - pos.x).toDouble(), (it.center.y - pos.y).toDouble()) > 3f * densidad) irACentro(it) }
-    }
-
-    private fun irACentro(r: androidx.compose.ui.geometry.Rect) {
-        pos = r.center
-        movimiento = SystemClock.uptimeMillis()
-        decorRef?.let { if (activo && !pulsado) hover(it) }
     }
 
     /** Tras abrir/cerrar barras o paneles: que lo «iluminado» por el cursor se corrija solo. */
@@ -261,12 +224,11 @@ object Puntero {
                 // En modo desplazar, soltar las flechas levanta el dedo virtual (con inercia).
                 if (modoScroll) decorRef?.let { terminarToque(it) }
                 parar()
-                if (!modoScroll) imantarReposo()
             }
         }
         if (!activo && !pulsado) return false
         // Con un diálogo abierto las flechas y OK mueven el foco de sus botones, no el cursor.
-        if (pausado && (dir || k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER)) return false
+        if ((pausado || pausadoExtra) && (dir || k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER)) return false
 
         val decor = act.window.decorView
         decorRef = decor
@@ -298,17 +260,19 @@ object Puntero {
                     val primera = teclas.isEmpty()
                     teclas.add(k)
                     densidad = act.resources.displayMetrics.density
-                    // Un toque suelto = un paso corto y preciso (para llegar a un botón
-                    // pequeño); si se mantiene, arranca el movimiento continuo que acelera.
-                    val d = 9f * densidad * factorVel
-                    val pasoX = when (k) { KeyEvent.KEYCODE_DPAD_LEFT -> -d; KeyEvent.KEYCODE_DPAD_RIGHT -> d; else -> 0f }
-                    val pasoY = when (k) { KeyEvent.KEYCODE_DPAD_UP -> -d; KeyEvent.KEYCODE_DPAD_DOWN -> d; else -> 0f }
-                    aplicar(decor, pasoX, pasoY)
-                    imantarPaso(pasoX, pasoY)
+                    // Como en TV Bro: el cursor arranca desde cero y acelera mientras la flecha esté
+                    // pulsada. Un toque suelto apenas lo mueve (unos pocos px), así se llega a un icono
+                    // pequeño; mantenida, la velocidad sube sola hasta el máximo.
+                    val d = 2.5f * densidad * (factorEf / 2f)
+                    aplicar(
+                        decor,
+                        when (k) { KeyEvent.KEYCODE_DPAD_LEFT -> -d; KeyEvent.KEYCODE_DPAD_RIGHT -> d; else -> 0f },
+                        when (k) { KeyEvent.KEYCODE_DPAD_UP -> -d; KeyEvent.KEYCODE_DPAD_DOWN -> d; else -> 0f },
+                    )
                     if (primera) {
                         inicioMov = ahora
                         h.removeCallbacks(movTick)
-                        h.postDelayed(movTick, RETARDO_MOV)
+                        h.post(movTick)
                     }
                 }
             }
@@ -381,8 +345,7 @@ object Puntero {
 
     private fun enviarToque(decor: android.view.View, accion: Int, p: Offset) {
         val ahora = SystemClock.uptimeMillis()
-        val e = MotionEvent.obtain(tDown, ahora, accion, p.x, p.y, 0)
-        e.source = InputDevice.SOURCE_TOUCHSCREEN
+        val e = tactil(tDown, ahora, accion, p.x, p.y)
         decor.dispatchTouchEvent(e)
         e.recycle()
     }
@@ -430,7 +393,6 @@ object Puntero {
     private val teclas = mutableSetOf<Int>()
     private var inicioMov = 0L
     private var ultimoEvento = 0L
-    private const val RETARDO_MOV = 200L
 
     /** Movimiento mientras se mantiene una flecha: arranca lento y acelera (≈150 → 1100 dp/s). */
     private val movTick = object : Runnable {
@@ -443,8 +405,8 @@ object Puntero {
                 parar()
                 return
             }
-            val t = ((ahora - inicioMov - RETARDO_MOV) / 1100f).coerceIn(0f, 1f)
-            val velocidad = (150f + 950f * t * t) * factorVel
+            val t = ((ahora - inicioMov) / 1100f).coerceIn(0f, 1f)
+            val velocidad = (25f + 1075f * t * t) * factorEf
             val paso = velocidad * 0.016f * densidad
             var dx = 0f
             var dy = 0f
@@ -605,10 +567,29 @@ object Puntero {
         }
     }
 
+    /**
+     * Un toque «de dedo» sintético. Lleva herramienta FINGER y su propio dispositivo: antes salía con
+     * herramienta desconocida y compartía el id 0 con el «ratón» del hover, y Compose se confundía
+     * (una pulsación sí y otra no llegaba a los botones).
+     */
+    private fun tactil(down: Long, t: Long, accion: Int, x: Float, y: Float): MotionEvent {
+        val pp = arrayOf(MotionEvent.PointerProperties().apply { id = 0; toolType = MotionEvent.TOOL_TYPE_FINGER })
+        val pc = arrayOf(MotionEvent.PointerCoords().apply { this.x = x; this.y = y; pressure = 1f; size = 1f })
+        return MotionEvent.obtain(down, t, accion, 1, pp, pc, 0, 0, 1f, 1f, DISPOSITIVO_DEDO, 0, InputDevice.SOURCE_TOUCHSCREEN, 0)
+    }
+
+    private fun raton(t: Long, accion: Int, x: Float, y: Float): MotionEvent {
+        val pp = arrayOf(MotionEvent.PointerProperties().apply { id = 1; toolType = MotionEvent.TOOL_TYPE_MOUSE })
+        val pc = arrayOf(MotionEvent.PointerCoords().apply { this.x = x; this.y = y })
+        return MotionEvent.obtain(t, t, accion, 1, pp, pc, 0, 0, 1f, 1f, DISPOSITIVO_RATON, 0, InputDevice.SOURCE_MOUSE, 0)
+    }
+
+    private const val DISPOSITIVO_DEDO = 9101
+    private const val DISPOSITIVO_RATON = 9102
+
     private fun enviarHover(decor: android.view.View, accion: Int) {
         val ahora = SystemClock.uptimeMillis()
-        val e = MotionEvent.obtain(ahora, ahora, accion, pos.x, pos.y, 0)
-        e.source = InputDevice.SOURCE_MOUSE
+        val e = raton(ahora, accion, pos.x, pos.y)
         decor.dispatchGenericMotionEvent(e)
         e.recycle()
     }
@@ -627,28 +608,33 @@ object Puntero {
         val ini = SystemClock.uptimeMillis()
         val pasos = 4
         var t = ini
-        var e = MotionEvent.obtain(ini, t, MotionEvent.ACTION_DOWN, p0.x, p0.y, 0)
-        e.source = InputDevice.SOURCE_TOUCHSCREEN
+        var e = tactil(ini, t, MotionEvent.ACTION_DOWN, p0.x, p0.y)
         decor.dispatchTouchEvent(e); e.recycle()
         for (i in 1..pasos) {
             t += 16
             // El contenido sube cuando el dedo sube: se invierte el empuje.
-            e = MotionEvent.obtain(ini, t, MotionEvent.ACTION_MOVE, p0.x - dx * i / pasos, p0.y - dy * i / pasos, 0)
-            e.source = InputDevice.SOURCE_TOUCHSCREEN
+            e = tactil(ini, t, MotionEvent.ACTION_MOVE, p0.x - dx * i / pasos, p0.y - dy * i / pasos)
             decor.dispatchTouchEvent(e); e.recycle()
         }
-        e = MotionEvent.obtain(ini, t + 16, MotionEvent.ACTION_UP, p0.x - dx, p0.y - dy, 0)
-        e.source = InputDevice.SOURCE_TOUCHSCREEN
+        e = tactil(ini, t + 16, MotionEvent.ACTION_UP, p0.x - dx, p0.y - dy)
         decor.dispatchTouchEvent(e); e.recycle()
     }
 
     private fun toque(decor: android.view.View, accion: Int) {
         val ahora = SystemClock.uptimeMillis()
-        if (accion == MotionEvent.ACTION_DOWN) downTime = ahora
-        val e = MotionEvent.obtain(downTime, ahora, accion, pos.x, pos.y, 0)
-        e.source = InputDevice.SOURCE_TOUCHSCREEN
+        if (accion == MotionEvent.ACTION_DOWN) {
+            downTime = ahora
+            // El «ratón» del hover se retira antes de pulsar: un dedo y un ratón a la vez no existen.
+            if (hoverActivo) {
+                enviarHover(decor, MotionEvent.ACTION_HOVER_EXIT)
+                hoverActivo = false
+            }
+        }
+        val e = tactil(downTime, ahora, accion, pos.x, pos.y)
         decor.dispatchTouchEvent(e)
         e.recycle()
+        // Al soltar, el botón sigue «iluminado» por el cursor.
+        if (accion == MotionEvent.ACTION_UP || accion == MotionEvent.ACTION_CANCEL) hover(decor)
     }
 }
 
@@ -660,24 +646,6 @@ fun Modifier.zonaScroll(estado: androidx.compose.foundation.ScrollState): Modifi
     val id = remember { Any() }
     DisposableEffect(id) { onDispose { Puntero.quitarZona(id) } }
     onGloballyPositioned { Puntero.registrarZona(id, Puntero.Zona(it.boundsInWindow(), estado)) }
-}
-
-/**
- * Marca un botón pequeño como «imán»: el cursor del mando se centra en él cuando pasa cerca.
- * Sólo para botones de poca superficie (iconos, chips): una fila ancha no debe atraerlo.
- */
-fun Modifier.imanCursor(): Modifier = composed {
-    val id = remember { Any() }
-    DisposableEffect(id) { onDispose { Puntero.quitarIman(id) } }
-    val dens = androidx.compose.ui.platform.LocalDensity.current.density
-    onGloballyPositioned {
-        val r = it.boundsInWindow()
-        if (r.width <= 150f * dens && r.height <= 80f * dens) {
-            Puntero.registrarIman(id, r)
-        } else {
-            Puntero.quitarIman(id)
-        }
-    }
 }
 
 /** Dibuja el puntero encima de todo (no intercepta toques). */
@@ -735,6 +703,11 @@ fun PunteroOverlay() {
             if (Puntero.pulsado) {
                 drawCircle(Ambar.copy(alpha = 0.28f), radius = 15.dp.toPx(), center = p)
                 drawCircle(Ambar, radius = 15.dp.toPx(), center = p, style = Stroke(2.dp.toPx()))
+            }
+            // Modo corto: un aro alrededor del punto caliente avisa de que va fino.
+            if (Puntero.modoFino) {
+                drawCircle(Color.White.copy(alpha = 0.9f), radius = 11.dp.toPx(), center = p, style = Stroke(1.5.dp.toPx()))
+                drawCircle(Ambar, radius = 2.dp.toPx(), center = p)
             }
             // Punta en (0, 0): el «punto caliente» del clic.
             val flecha = Path().apply {
