@@ -1,5 +1,12 @@
 # Cambios
 
+## 1.4.2 — 2026-10-31
+- El reproductor se abre en su propia pestaña (ya no tapa todo): puedes irte a otra pestaña y volver; al salir se guarda por dónde ibas y al abrir el archivo se retoma ahí (historial de los últimos 60 archivos).
+- Lista de reproducción: con ↓ sale un panel a la izquierda con los videos y audios de la misma carpeta (con el minuto donde quedó cada uno); OK reproduce, y al terminar pasa solo al siguiente.
+- Errores de reproducción con detalle para diagnosticar: código del error, causa, nombre y tamaño del archivo, cabecera (formato real), pistas con su códec y si el televisor las soporta. También queda en la Bitácora.
+- Si lo descargado no es un video (una página web guardada como .mp4, como pasa con MediaFire) lo dice claro en vez de fallar con «parsing container».
+- En un error, OK abre el archivo con otra aplicación del televisor.
+
 ## 1.4.1 — 2026-10-31
 - Actualizaciones en segundo plano: se busca al abrir (a los 20 s) y cada 6 h. Si hay versión nueva, el botón del menú lleva un punto ámbar y el menú un renglón «Actualización X» arriba.
 - El instalador descargado se conserva entre sesiones: si ya está completo (mismo tamaño que en GitHub) la app lo reconoce como «Listo» y no lo baja otra vez. Se descarga a un archivo parcial y solo se da por bueno si queda completo.

@@ -163,6 +163,8 @@ private const val INTERNA_CONFIG = "cocosurf://config"
 private const val INTERNA_ACERCA = "cocosurf://acerca"
 private const val INTERNA_CLAVES = "cocosurf://claves"
 private const val INTERNA_ARCHIVOS = "cocosurf://archivos"
+/** Reproductor interno: una pestaña por archivo (`cocosurf://reproducir?f=<ruta codificada>`). */
+private const val INTERNA_REPRODUCIR = "cocosurf://reproducir?f="
 
 /** Título de una vista interna; `null` cuando la URL es de una página web. */
 private fun tituloInterna(url: String): String? = when (url) {
@@ -173,7 +175,7 @@ private fun tituloInterna(url: String): String? = when (url) {
     INTERNA_ACERCA -> "Acerca de"
     INTERNA_CLAVES -> "Contraseñas"
     INTERNA_ARCHIVOS -> "Archivos"
-    else -> null
+    else -> if (url.startsWith(INTERNA_REPRODUCIR)) java.io.File(android.net.Uri.decode(url.removePrefix(INTERNA_REPRODUCIR))).name else null
 }
 
 private sealed interface Overlay {
@@ -278,7 +280,6 @@ fun BrowserScreen() {
     var restaurarPestanas by remember { mutableStateOf(true) }
     var pestanasCargadas by remember { mutableStateOf(false) }
     // Reproductor de video/audio a pantalla completa y carpeta con la que se abre «Archivos».
-    var reproductorArchivo by remember { mutableStateOf<java.io.File?>(null) }
     var carpetaArchivos by remember { mutableStateOf<java.io.File?>(null) }
     var precalentarMotor by remember { mutableStateOf(true) }
     // Contraseñas: lo que Gecko pregunta (guardar) u ofrece (rellenar) en la página activa.
@@ -1566,7 +1567,7 @@ fun BrowserScreen() {
         else java.io.File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), d.title)
         if (!f.exists()) { openDownloadedFile(context, d); return }
         when (com.antena.tv.archivos.Almacenamiento.tipoDe(f)) {
-            com.antena.tv.archivos.Tipo.VIDEO, com.antena.tv.archivos.Tipo.AUDIO -> { closeOverlay(); reproductorArchivo = f }
+            com.antena.tv.archivos.Tipo.VIDEO, com.antena.tv.archivos.Tipo.AUDIO -> abrirInterna(INTERNA_REPRODUCIR + android.net.Uri.encode(f.path))
             com.antena.tv.archivos.Tipo.APK -> com.antena.tv.archivos.Almacenamiento.instalarApk(context, f)?.let { toast(it) }
             else -> openDownloadedFile(context, d)
         }
@@ -2300,7 +2301,11 @@ fun BrowserScreen() {
                     // estado propio de cada pestaña (filtro y scroll del historial…)
                     // para que siga igual al cambiar a otra pestaña y volver.
                     tabStateHolder.SaveableStateProvider(activeId) {
-                        when (activeTab.url) {
+                        val urlTab = activeTab.url
+                        if (urlTab.startsWith(INTERNA_REPRODUCIR)) {
+                            val idTab = activeId
+                            ReproductorLocal(java.io.File(android.net.Uri.decode(urlTab.removePrefix(INTERNA_REPRODUCIR)))) { closeTab(idTab) }
+                        } else when (urlTab) {
                             INTERNA_HISTORIAL -> HistoryPage(
                                 entries = history,
                                 filter = historyFilter,
@@ -2345,7 +2350,7 @@ fun BrowserScreen() {
                             INTERNA_CLAVES -> ClavesPage(onBack = { closeTab(activeId) })
                             INTERNA_ARCHIVOS -> ArchivosPage(
                                 onClose = { closeTab(activeId) },
-                                onReproducir = { reproductorArchivo = it },
+                                onReproducir = { abrirInterna(INTERNA_REPRODUCIR + android.net.Uri.encode(it.path)) },
                                 carpetaInicial = carpetaArchivos,
                             )
                             INTERNA_CONFIG -> ConfiguracionPage(
@@ -3045,10 +3050,6 @@ fun BrowserScreen() {
             }
         }
 
-        reproductorArchivo?.let { f ->
-            Box(Modifier.fillMaxSize().zIndex(60f)) { ReproductorLocal(f) { reproductorArchivo = null } }
-        }
-
         // Contraseñas: ofrecer guardar o elegir (tarjeta bajo la barra, arriba al centro).
         claveGuardar?.let { ClaveGuardarCard(it, Modifier.align(Alignment.TopCenter).padding(top = 76.dp).zIndex(25f)) }
         claveElegir?.let { ClaveElegirCard(it, Modifier.align(Alignment.TopCenter).padding(top = 76.dp).zIndex(25f)) }
@@ -3406,7 +3407,9 @@ private fun TabChip(
 private fun TabIcono(url: String, active: Boolean, compact: Boolean) {
     val lado = if (compact) 13.dp else 18.dp
     if (url.startsWith("cocosurf://")) {
-        val icono = when (url) {
+        val icono = when {
+            url.startsWith(INTERNA_REPRODUCIR) -> ToolIcon.Folder2
+            else -> when (url) {
             INTERNA_HISTORIAL -> ToolIcon.Clock
             INTERNA_DESCARGAS -> ToolIcon.Download
             INTERNA_CONFIG -> ToolIcon.Gear
@@ -3414,6 +3417,7 @@ private fun TabIcono(url: String, active: Boolean, compact: Boolean) {
             INTERNA_CLAVES -> ToolIcon.Lock
             INTERNA_ARCHIVOS -> ToolIcon.Folder
             else -> ToolIcon.Home
+            }
         }
         ToolIconGlyph(kind = icono, color = if (active) Ambar else Azul, size = lado)
         return
