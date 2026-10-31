@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.4.3 — 2026-10-31
+- Diálogo «¿Salir de Coco Surf?»: el foco ya no se escapa. ↑ y ↓ no hacen nada y ← → alternan entre Cancelar y Salir, así que no se puede perder el control hacia la página.
+
 ## 1.4.2 — 2026-10-31
 - El reproductor se abre en su propia pestaña (ya no tapa todo): puedes irte a otra pestaña y volver; al salir se guarda por dónde ibas y al abrir el archivo se retoma ahí (historial de los últimos 60 archivos).
 - Lista de reproducción: con ↓ sale un panel a la izquierda con los videos y audios de la misma carpeta (con el minuto donde quedó cada uno); OK reproduce, y al terminar pasa solo al siguiente.

@@ -1428,10 +1428,24 @@ private fun SeccionActualizacion() {
 @Composable
 fun SalirDialogo(onSalir: () -> Unit, onCancelar: () -> Unit) {
     val cancelar = remember { FocusRequester() }
+    val salir = remember { FocusRequester() }
     LaunchedEffect(Unit) { delay(60); runCatching { cancelar.requestFocus() } }
     Box(
         Modifier
             .fillMaxSize()
+            // El foco no sale del diálogo: ↑ y ↓ no hacen nada, ← → alternan entre los dos botones.
+            .onPreviewKeyEvent { ev ->
+                val dir = ev.key == Key.DirectionUp || ev.key == Key.DirectionDown ||
+                    ev.key == Key.DirectionLeft || ev.key == Key.DirectionRight
+                if (ev.type == KeyEventType.KeyDown) {
+                    when (ev.key) {
+                        Key.DirectionLeft -> runCatching { cancelar.requestFocus() }
+                        Key.DirectionRight -> runCatching { salir.requestFocus() }
+                        else -> Unit
+                    }
+                }
+                dir
+            }
             .background(Color.Black.copy(alpha = 0.45f))
             .pointerInput(Unit) { detectTapGestures { onCancelar() } },
         contentAlignment = Alignment.Center,
@@ -1458,7 +1472,9 @@ fun SalirDialogo(onSalir: () -> Unit, onCancelar: () -> Unit) {
                 Box(Modifier.focusRequester(cancelar)) {
                     RemoteChip(label = "Cancelar", small = true, onClick = onCancelar)
                 }
-                RemoteChip(label = "Salir", small = true, peligro = true, onClick = onSalir)
+                Box(Modifier.focusRequester(salir)) {
+                    RemoteChip(label = "Salir", small = true, peligro = true, onClick = onSalir)
+                }
             }
         }
     }
