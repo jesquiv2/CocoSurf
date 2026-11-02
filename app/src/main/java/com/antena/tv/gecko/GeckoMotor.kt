@@ -323,6 +323,7 @@ object GeckoMotor {
             bloqueadorListo = true
             val seg = (android.os.SystemClock.elapsedRealtime() - inicioMotorMs) / 1000
             Bitacora.add(LogKind.SISTEMA, "Complemento listo: ${extension.metaData.name ?: extension.id} (${seg} s después de arrancar el motor)")
+            com.antena.tv.log.Tiempos.hito("complemento listo: ${extension.metaData.name ?: extension.id}")
         }
         val info = AccionInfo(
             extId = extension.id,
@@ -474,6 +475,7 @@ object GeckoMotor {
             .build()
         val rt = GeckoRuntime.create(context.applicationContext, ajustes)
         inicioMotorMs = android.os.SystemClock.elapsedRealtime()
+        com.antena.tv.log.Tiempos.hito("motor Firefox creado")
         ajustarPreferencias()
         // Contraseñas guardadas en el aparato (cifradas): Gecko las pide y las entrega aquí.
         com.antena.tv.browser.Contrasenas.iniciar(context)
@@ -493,6 +495,7 @@ object GeckoMotor {
             .accept(
                 { ext ->
                     helper = ext
+                    com.antena.tv.log.Tiempos.hito("extensión interna lista")
                     ext?.setMessageDelegate(delegate, "antena")
                     sesiones.toList().forEach { s ->
                         ext?.let { s.webExtensionController.setMessageDelegate(it, delegate, "antena") }
@@ -560,6 +563,7 @@ object GeckoMotor {
                 override fun onPageStop(session: GeckoSession, success: Boolean) {
                     val seg = (android.os.SystemClock.elapsedRealtime() - inicioCalentamientoMs) / 1000
                     Bitacora.add(LogKind.SISTEMA, "Motor precalentado en ${seg} s (proceso de contenido listo)")
+                    com.antena.tv.log.Tiempos.hito("proceso de contenido listo")
                 }
             }
             s.open(rt)

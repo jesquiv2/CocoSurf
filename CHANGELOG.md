@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.9.0 — 2026-11-02
+- Medición de velocidad en la Bitácora, para tener datos reales de dónde se va la espera:
+  - Arranque: «ventana creada», «motor Firefox creado», «extensión interna lista», «complemento listo (uBlock)» y «proceso de contenido listo», cada uno con los segundos desde que se abre la app.
+  - Cada página que se abre: tiempo hasta el primer contenido visible, tiempo hasta la carga completa, cuánto de eso fue esperar al motor, memoria libre en ese momento, y media y peor tiempo de la sesión. La primera lleva la marca «PRIMERA página».
+  - Interfaz sin responder: si la app deja de atender al usuario más de 0,5 s (cursor pegado, botones sin respuesta) lo anota con la memoria libre.
+
 ## 1.8.1 — 2026-11-02
 - Las barras (pestañas y dirección) se esconden siempre al bajar la página, también cuando las habías abierto con Atrás o ↑; antes solo se escondían al terminar de cargar.
 - Menú en mosaico más compacto: botones cuadrados de 66 dp y ventana mucho más estrecha; «Salir» queda centrado.

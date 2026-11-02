@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Fase 6 · bitácora: recupera el cierre anterior y captura errores internos.
         Bitacora.init(this)
+        com.antena.tv.log.Tiempos.iniciar(this)
         setContent {
             AntenaTheme {
                 Shell()

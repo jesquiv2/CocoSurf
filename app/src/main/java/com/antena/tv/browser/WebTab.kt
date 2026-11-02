@@ -226,6 +226,12 @@ class WebTab(
         }
 
         s.contentDelegate = object : GeckoSession.ContentDelegate {
+            override fun onFirstContentfulPaint(session: GeckoSession) {
+                if (cargaIni > 0 && pintadoMs == 0L) {
+                    pintadoMs = (android.os.SystemClock.elapsedRealtime() - cargaIni).coerceAtLeast(1)
+                }
+            }
+
             override fun onTitleChange(session: GeckoSession, title: String?) {
                 this@WebTab.title = title ?: ""
                 onTitle(this@WebTab.title)
@@ -279,6 +285,14 @@ class WebTab(
 
         s.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStart(session: GeckoSession, url: String) {
+                if (url.startsWith("http")) {
+                    val ahora = android.os.SystemClock.elapsedRealtime()
+                    cargaIni = ahora
+                    pintadoMs = 0
+                    // Espera previa: desde que se pidió la página hasta que el motor empezó (sólo si la pidió la app).
+                    previaMs = if (pedidoEn > 0 && ahora - pedidoEn < 120_000) ahora - pedidoEn else 0
+                    pedidoEn = 0
+                }
                 this@WebTab.url = url
                 onUrl(url)
                 onProgress(1)
@@ -290,6 +304,13 @@ class WebTab(
             }
 
             override fun onPageStop(session: GeckoSession, success: Boolean) {
+                if (cargaIni > 0 && this@WebTab.url.startsWith("http")) {
+                    com.antena.tv.log.Tiempos.pagina(
+                        this@WebTab.url, success, previaMs, pintadoMs,
+                        android.os.SystemClock.elapsedRealtime() - cargaIni,
+                    )
+                    cargaIni = 0
+                }
                 onProgress(if (success) 100 else 0)
                 onLoaded(url, success)
             }
@@ -394,7 +415,14 @@ class WebTab(
         }
     }
 
+    // Medidas de velocidad de la página en curso (Bitácora).
+    private var cargaIni = 0L
+    private var pedidoEn = 0L
+    private var previaMs = 0L
+    private var pintadoMs = 0L
+
     fun load(newUrl: String) {
+        pedidoEn = android.os.SystemClock.elapsedRealtime()
         url = newUrl
         session.loadUri(newUrl)
     }
