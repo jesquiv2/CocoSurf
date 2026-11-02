@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.8.0 — 2026-11-01
+- Menú principal en mosaico: botones de solo icono en 3 columnas (mucho menos alto). El nombre del botón con el foco o el cursor encima se lee debajo del mosaico. «Salir de Coco Surf» sigue aparte, en rojo.
+
 ## 1.7.2 — 2026-11-01
 - Descarga de la actualización resistente a cortes: si la conexión se cae, el archivo parcial se conserva y se retoma donde quedó (hasta 30 reintentos seguidos), en vez de botarlo y empezar de cero. Si se rinde, pulsar de nuevo continúa desde ese punto.
 - Monitor: la velocidad de red cambia de unidad sola (KB/s → MB/s al pasar de 1024 KB/s).

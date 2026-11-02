@@ -921,21 +921,83 @@ fun MenuDropdown(
         if (actualizacion != null) {
             MenuRow("Actualización $actualizacion", icon = ToolIcon.Download, value = "Instalar", onClick = onAcerca)
         }
-        Box(Modifier.focusRequester(first)) {
-            MenuRow("Favoritos", icon = ToolIcon.Star, onClick = onFavorites)
+        // Mosaico de iconos (3 columnas); el nombre del que tiene el foco o el cursor se lee debajo.
+        var etiqueta by remember { mutableStateOf("Favoritos") }
+        val mosaicos = listOf(
+            Triple("Favoritos", ToolIcon.Star, onFavorites),
+            Triple("Historial", ToolIcon.Clock, onHistory),
+            Triple("Descargas", ToolIcon.Download, onDownloads),
+            Triple("Archivos", ToolIcon.Folder, onArchivos),
+            Triple("Complementos", ToolIcon.Puzzle, onComplementos),
+            Triple("Contraseñas", ToolIcon.Lock, onClaves),
+            Triple("Configuración · $engineName", ToolIcon.Gear, onConfig),
+            Triple("Información del sistema", ToolIcon.Chip, onSystem),
+            Triple("Acerca de Coco Surf", ToolIcon.Info, onAcerca),
+        )
+        mosaicos.chunked(3).forEachIndexed { f, fila ->
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                fila.forEachIndexed { c, (nombre, icono, accion) ->
+                    MenuMosaico(
+                        label = nombre,
+                        icon = icono,
+                        onClick = accion,
+                        onEnfoque = { etiqueta = it },
+                        modifier = Modifier.weight(1f).then(if (f == 0 && c == 0) Modifier.focusRequester(first) else Modifier),
+                    )
+                }
+            }
         }
-        MenuRow("Historial", icon = ToolIcon.Clock, onClick = onHistory)
-        MenuRow("Descargas", icon = ToolIcon.Download, onClick = onDownloads)
-        MenuRow("Archivos", icon = ToolIcon.Folder, onClick = onArchivos)
-        MenuDivisor()
-        MenuRow("Complementos", icon = ToolIcon.Puzzle, onClick = onComplementos)
-        MenuRow("Contraseñas", icon = ToolIcon.Lock, onClick = onClaves)
-        MenuRow("Configuración", icon = ToolIcon.Gear, value = engineName, onClick = onConfig)
-        MenuDivisor()
-        MenuRow("Información del sistema", icon = ToolIcon.Chip, onClick = onSystem)
-        MenuRow("Acerca de Coco Surf", icon = ToolIcon.Info, onClick = onAcerca)
+        Text(
+            etiqueta,
+            style = AntenaType.body,
+            color = Ambar,
+            maxLines = 1,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
+        )
         MenuDivisor()
         MenuRow("Salir de Coco Surf", icon = ToolIcon.Power, peligro = true, onClick = onSalir)
+    }
+}
+
+/** Botón cuadrado de solo icono del menú; avisa de su nombre cuando recibe el foco o el cursor. */
+@Composable
+private fun MenuMosaico(
+    label: String,
+    icon: ToolIcon,
+    onClick: () -> Unit,
+    onEnfoque: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var focused by remember { mutableStateOf(false) }
+    val fuente = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val hover by fuente.collectIsHoveredAsState()
+    val center = rememberCenterHandler(onClick, null)
+    val shape = RoundedCornerShape(12.dp)
+    LaunchedEffect(focused, hover) { if (focused || hover) onEnfoque(label) }
+    Box(
+        modifier
+            .height(64.dp)
+            .hoverable(fuente)
+            .onFocusChanged { focused = it.isFocused }
+            .focusable()
+            .clip(shape)
+            .background(
+                when {
+                    focused -> Ambar.copy(alpha = 0.16f)
+                    hover -> Ambar.copy(alpha = 0.09f)
+                    else -> Fosforo.copy(alpha = 0.06f)
+                },
+            )
+            .border(if (focused) 1.5.dp else 0.dp, if (focused) Ambar else Color.Transparent, shape)
+            .onKeyEvent(center)
+            .pointerInput(onClick) { detectTapGestures { onClick() } },
+        contentAlignment = Alignment.Center,
+    ) {
+        ToolIconGlyph(icon, if (focused || hover) Ambar else Fosforo, size = 30.dp)
     }
 }
 
