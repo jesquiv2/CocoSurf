@@ -1,5 +1,10 @@
 # Cambios
 
+## 1.8.1 — 2026-11-02
+- Las barras (pestañas y dirección) se esconden siempre al bajar la página, también cuando las habías abierto con Atrás o ↑; antes solo se escondían al terminar de cargar.
+- Menú en mosaico más compacto: botones cuadrados de 66 dp y ventana mucho más estrecha; «Salir» queda centrado.
+- Iconos nuevos: engranaje con dientes y agujero (Configuración), pieza de rompecabezas (Complementos), «i» en círculo para Información del sistema y una etiqueta para Acerca de.
+
 ## 1.8.0 — 2026-11-01
 - Menú principal en mosaico: botones de solo icono en 3 columnas (mucho menos alto). El nombre del botón con el foco o el cursor encima se lee debajo del mosaico. «Salir de Coco Surf» sigue aparte, en rojo.
 

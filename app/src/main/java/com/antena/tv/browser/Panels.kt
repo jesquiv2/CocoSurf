@@ -170,6 +170,8 @@ enum class ToolIcon {
     Trash, Close, Pin, PinFilled, More, Folder2,
     // Menú de página: adelante, traducir, imprimir.
     Forward, Globe, Print,
+    // Etiqueta (Acerca de).
+    Tag,
 }
 
 /**
@@ -348,28 +350,25 @@ private fun ToolIconCanvas(kind: ToolIcon, color: Color, lado: Dp = 18.dp) {
                 path.close()
                 drawPath(path, color)
             }
-            // Configuración (Paso 2): engranaje de anillo grueso y 8 dientes.
+            // Configuración: engranaje con contorno de 8 dientes y agujero central.
             ToolIcon.Gear -> {
                 val cx = 0.5f * w
                 val cy = 0.5f * h
-                drawCircle(
-                    color = color,
-                    radius = 0.22f * w,
-                    center = Offset(cx, cy),
-                    style = Stroke(sw, cap = StrokeCap.Round),
-                )
-                repeat(8) { i ->
-                    val a = Math.toRadians(i * 45.0)
-                    val dx = kotlin.math.cos(a).toFloat()
-                    val dy = kotlin.math.sin(a).toFloat()
-                    drawLine(
-                        color,
-                        Offset(cx + dx * 0.30f * w, cy + dy * 0.30f * h),
-                        Offset(cx + dx * 0.44f * w, cy + dy * 0.44f * h),
-                        sw,
-                        cap = StrokeCap.Round,
-                    )
+                val ro = 0.45f * w
+                val ri = 0.33f * w
+                val p = Path()
+                for (i in 0 until 8) {
+                    val c = i * 45.0
+                    listOf(c - 15.0 to ri, c - 9.0 to ro, c + 9.0 to ro, c + 15.0 to ri).forEachIndexed { k, (grados, r) ->
+                        val ang = Math.toRadians(grados)
+                        val x = (cx + r * kotlin.math.cos(ang)).toFloat()
+                        val y = (cy + r * kotlin.math.sin(ang)).toFloat()
+                        if (i == 0 && k == 0) p.moveTo(x, y) else p.lineTo(x, y)
+                    }
                 }
+                p.close()
+                drawPath(p, color, style = Stroke(sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                drawCircle(color, radius = 0.13f * w, center = Offset(cx, cy), style = Stroke(sw))
             }
             // Pestaña nueva: hoja redondeada con un "+" dentro.
             ToolIcon.NewTab -> {
@@ -459,18 +458,34 @@ private fun ToolIconCanvas(kind: ToolIcon, color: Color, lado: Dp = 18.dp) {
                 path.close()
                 drawPath(path, color, style = Stroke(sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
             }
-            // Complementos: pieza de rompecabezas (cuerpo + dos botones).
+            // Complementos: pieza de rompecabezas (dos salientes arriba y a la derecha, muesca a la izquierda).
             ToolIcon.Puzzle -> {
-                val stroke = Stroke(sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round)
-                drawRoundRect(
-                    color = color,
-                    topLeft = Offset(0.16f * w, 0.32f * h),
-                    size = Size(0.56f * w, 0.52f * h),
-                    cornerRadius = CornerRadius(0.08f * w),
-                    style = stroke,
-                )
-                drawCircle(color, radius = 0.10f * w, center = Offset(0.44f * w, 0.24f * h), style = stroke)
-                drawCircle(color, radius = 0.10f * w, center = Offset(0.80f * w, 0.58f * h), style = stroke)
+                val pz = Path().apply {
+                    moveTo(0.16f * w, 0.30f * h)
+                    lineTo(0.38f * w, 0.30f * h)
+                    cubicTo(0.30f * w, 0.10f * h, 0.70f * w, 0.10f * h, 0.62f * w, 0.30f * h)
+                    lineTo(0.84f * w, 0.30f * h)
+                    lineTo(0.84f * w, 0.42f * h)
+                    cubicTo(0.98f * w, 0.34f * h, 0.98f * w, 0.74f * h, 0.84f * w, 0.66f * h)
+                    lineTo(0.84f * w, 0.86f * h)
+                    lineTo(0.16f * w, 0.86f * h)
+                    lineTo(0.16f * w, 0.66f * h)
+                    cubicTo(0.32f * w, 0.74f * h, 0.32f * w, 0.34f * h, 0.16f * w, 0.42f * h)
+                    close()
+                }
+                drawPath(pz, color, style = Stroke(sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            }
+            ToolIcon.Tag -> {
+                val et = Path().apply {
+                    moveTo(0.14f * w, 0.14f * h)
+                    lineTo(0.52f * w, 0.14f * h)
+                    lineTo(0.88f * w, 0.50f * h)
+                    lineTo(0.50f * w, 0.88f * h)
+                    lineTo(0.14f * w, 0.52f * h)
+                    close()
+                }
+                drawPath(et, color, style = Stroke(sw, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+                drawCircle(color, radius = 0.06f * w, center = Offset(0.32f * w, 0.32f * h))
             }
             ToolIcon.Info -> {
                 drawCircle(color, radius = 0.36f * w, style = Stroke(sw))
@@ -891,7 +906,7 @@ fun MenuDropdown(
     val altoMax = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.dp - 120.dp
     Column(
         Modifier
-            .width(360.dp)
+            .width(250.dp)
             .heightIn(max = altoMax)
             .cristal(RoundedCornerShape(EsquinaTarjeta))
             .listaDesplazable()
@@ -931,13 +946,13 @@ fun MenuDropdown(
             Triple("Complementos", ToolIcon.Puzzle, onComplementos),
             Triple("Contraseñas", ToolIcon.Lock, onClaves),
             Triple("Configuración · $engineName", ToolIcon.Gear, onConfig),
-            Triple("Información del sistema", ToolIcon.Chip, onSystem),
-            Triple("Acerca de Coco Surf", ToolIcon.Info, onAcerca),
+            Triple("Información del sistema", ToolIcon.Info, onSystem),
+            Triple("Acerca de Coco Surf", ToolIcon.Tag, onAcerca),
         )
         mosaicos.chunked(3).forEachIndexed { f, fila ->
             Row(
                 Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
             ) {
                 fila.forEachIndexed { c, (nombre, icono, accion) ->
                     MenuMosaico(
@@ -945,21 +960,23 @@ fun MenuDropdown(
                         icon = icono,
                         onClick = accion,
                         onEnfoque = { etiqueta = it },
-                        modifier = Modifier.weight(1f).then(if (f == 0 && c == 0) Modifier.focusRequester(first) else Modifier),
+                        modifier = if (f == 0 && c == 0) Modifier.focusRequester(first) else Modifier,
                     )
                 }
             }
         }
         Text(
             etiqueta,
-            style = AntenaType.body,
+            style = AntenaType.meta,
             color = Ambar,
             maxLines = 1,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp),
         )
         MenuDivisor()
-        MenuRow("Salir de Coco Surf", icon = ToolIcon.Power, peligro = true, onClick = onSalir)
+        Box(Modifier.fillMaxWidth().padding(top = 2.dp), contentAlignment = Alignment.Center) {
+            RemoteChip(label = "Salir", icon = ToolIcon.Power, small = true, peligro = true, onClick = onSalir)
+        }
     }
 }
 
@@ -980,7 +997,7 @@ private fun MenuMosaico(
     LaunchedEffect(focused, hover) { if (focused || hover) onEnfoque(label) }
     Box(
         modifier
-            .height(64.dp)
+            .size(66.dp)
             .hoverable(fuente)
             .onFocusChanged { focused = it.isFocused }
             .focusable()
@@ -997,7 +1014,7 @@ private fun MenuMosaico(
             .pointerInput(onClick) { detectTapGestures { onClick() } },
         contentAlignment = Alignment.Center,
     ) {
-        ToolIconGlyph(icon, if (focused || hover) Ambar else Fosforo, size = 30.dp)
+        ToolIconGlyph(icon, if (focused || hover) Ambar else Fosforo, size = 28.dp)
     }
 }
 

@@ -289,6 +289,9 @@ fun BrowserScreen() {
     val muestras = remember { androidx.compose.runtime.mutableStateListOf<com.antena.tv.gecko.Recursos.Muestra>() }
     // ¿La página está desplazada? (para el botón «ir arriba» y el ↑ al tope).
     var scrolled by remember { mutableStateOf(false) }
+    // Último scroll visto y momento en que se abrieron las barras (para esconderlas al bajar).
+    val ultimoScroll = remember { intArrayOf(0) }
+    val barrasAbiertasEn = remember { longArrayOf(0L) }
 
     // Fase 3 · sugerencias en vivo bajo la barra de direcciones: direcciones y
     // búsquedas del historial real (nunca entradas inventadas).
@@ -533,7 +536,19 @@ fun BrowserScreen() {
                 }
             }
             w.onScroll = { y ->
-                if (id == activeId) scrolled = y > 40
+                if (id == activeId) {
+                    val antes = ultimoScroll[0]
+                    ultimoScroll[0] = y
+                    scrolled = y > 40
+                    // Bajar la página con las barras a la vista las esconde siempre (no solo al cargar).
+                    // Los saltos que provoca el propio cambio de alto justo al abrirlas se ignoran.
+                    if (
+                        chromeOpen && y > 80 && y > antes + 24 && overlay == null && !editing &&
+                        android.os.SystemClock.uptimeMillis() - barrasAbiertasEn[0] > 900
+                    ) {
+                        chromeOpen = false
+                    }
+                }
             }
             // Fase 8 · target=_blank / window.open → pestaña nueva.
             // Con gesto del usuario va al frente; sin él (popunder de
@@ -1309,6 +1324,9 @@ fun BrowserScreen() {
 
     // El cursor «ilumina» lo que tiene debajo: al subir o bajar barras y paneles se
     // corrige solo, en vez de dejar botones marcados.
+    LaunchedEffect(chromeOpen) {
+        if (chromeOpen) barrasAbiertasEn[0] = android.os.SystemClock.uptimeMillis()
+    }
     LaunchedEffect(chromeOpen, overlay, panelFijo) {
         delay(350)
         Puntero.sincronizarHover()
