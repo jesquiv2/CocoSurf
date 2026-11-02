@@ -527,6 +527,9 @@ object GeckoMotor {
         num("browser.cache.memory.capacity", 2048)
         num("image.mem.surfacecache.max_size_kb", 40_960)
         num("media.memory_cache_max_size", 16_384)
+        // La precarga de video por trozos (precarga.js) vive en la caché de disco, no en RAM.
+        num("browser.cache.disk.capacity", 524_288)
+        bool("browser.cache.disk.enable", true)
         bool("media.av1.enabled", false)
         bool("media.mediasource.vp9.enabled", false)
         bool("dom.webgpu.enabled", false)
@@ -920,6 +923,10 @@ object GeckoMotor {
             runCatching {
                 val obj = org.json.JSONObject(message.toString())
                 when {
+                    obj.optString("tag") == "precarga" -> {
+                        Log.i(TAG, "precarga: " + obj.optString("msg"))
+                        com.antena.tv.log.Bitacora.add(com.antena.tv.log.LogKind.SISTEMA, "Precarga de video: " + obj.optString("msg"))
+                    }
                     obj.has("y") -> _scrollY.value = obj.optInt("y", -1)
                     // Cachear el elemento señalado: «foco» lo refresca al
                     // navegar con el D-pad y «contexto» al mantener OK; el

@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.6.0 — 2026-11-01
+- Precarga de video por trozos (HLS, como el de JKAnime): la app baja por adelantado hasta 10 minutos de video a la caché de DISCO (no RAM) aunque el reproductor de la página solo guarde unos segundos. Si el servidor se atasca un momento, el video sigue sin esperas porque los trozos ya están en el televisor.
+- La caché de disco sube a 512 MB. La Bitácora anota cuántos trozos hay en caché y cada espera de más de 0,4 s del reproductor.
+
 ## 1.5.0 — 2026-11-01
 - Página para el PC (compartir por red) rehecha como un explorador de archivos: iconos por tipo, orden por nombre/tamaño/fecha, búsqueda, selección múltiple, renombrar, borrar con confirmación, nueva carpeta y vista previa (imágenes, video, audio, PDF y texto) con ← →.
 - Subidas arrastrando y soltando (también carpetas enteras) o con los botones, con barra de progreso por archivo; si el nombre ya existe se guarda como «nombre (1)».
