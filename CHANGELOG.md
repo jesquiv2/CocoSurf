@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.7.1 — 2026-11-01
+- Colchón de video más grande: tras quedarse sin datos junta ~60 s (hasta 90 s si el servidor da problemas) y al arrancar ~40 s; cada pausa puede durar hasta 60 s (90 s con servidor lento).
+- Monitor: el ⚠ de servidor con problemas pasa delante del número de «Colchón» y la fila «Servidor» es más ancha para leer el nombre completo.
+
 ## 1.7.0 — 2026-11-01
 - Aviso de espera discreto: un punto ámbar que palpita arriba a la derecha (con el nombre del servidor sólo si da problemas), en vez del cuadro grande.
 - Detección de servidor con problemas (descarga más lenta que ~2x el video, fallos de trozos, o el video se queda sin datos): durante 2 minutos la precarga sube de 60 a 120 s por delante, abre 4 descargas a la vez y las pausas juntan un colchón 60 % mayor (hasta 60 s de espera).

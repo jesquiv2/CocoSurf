@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.antena.tv.gecko.Memoria
@@ -41,6 +42,8 @@ class MetricaMonitor(
     val serie: ((Muestra) -> Float?)? = null,
     /** Valor máximo de la escala del gráfico (null = el máximo de lo visto). */
     val maximo: ((Muestra) -> Float)? = null,
+    /** Ancho de la columna de la cifra. */
+    val ancho: Dp = 74.dp,
     val texto: (Muestra) -> String,
 )
 
@@ -76,10 +79,10 @@ val METRICAS_MONITOR = listOf(
         m.precarga?.let { "${it.cacheS.toInt()} s" } ?: "—"
     },
     MetricaMonitor("colchon_video", "Colchón", AZUL, { it.precarga?.colchonS }, { 40f }) { m ->
-        m.precarga?.let { "${it.colchonS.toInt()} s" } ?: "—"
+        m.precarga?.let { (if (it.malo) "⚠ " else "") + "${it.colchonS.toInt()} s" } ?: "—"
     },
-    MetricaMonitor("servidor_video", "Servidor", NARANJA) { m ->
-        m.precarga?.let { (if (it.malo) "⚠ " else "") + it.servidor.take(10) } ?: "—"
+    MetricaMonitor("servidor_video", "Servidor", NARANJA, ancho = 150.dp) { m ->
+        m.precarga?.let { it.servidor.take(24) } ?: "—"
     },
     MetricaMonitor("fps", "FPS UI", Color.White, { it.fps.toFloat() }, { 60f }) { "${it.fps}" },
     MetricaMonitor("termico", "Térmico", ROJO) { m ->
@@ -155,7 +158,7 @@ fun MonitorRecursos(muestras: List<Muestra>, modifier: Modifier = Modifier) {
                     cifra,
                     style = AntenaType.monoSmall.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold),
                     color = if (m.id == "ram" && ultima.presion >= Memoria.Presion.CRITICA) ROJO else Color.White,
-                    modifier = Modifier.width(74.dp),
+                    modifier = Modifier.width(m.ancho),
                 )
                 if (MonitorConfig.graficas && m.serie != null) {
                     Spacer(Modifier.width(6.dp))

@@ -17,8 +17,8 @@
   var PARALELO = 2; // descargas simultáneas
   var PARALELO_MALO = 4; // con servidor lento se abren más conexiones (muchos limitan cada una)
   var MAX_FALLOS = 3;
-  var COLCHON_INICIO = 25; // s de video que se juntan antes de arrancar
-  var COLCHON_CORTE = 15; // s que se juntan cuando se queda sin datos a media reproducción
+  var COLCHON_INICIO = 40; // s de video que se juntan antes de arrancar
+  var COLCHON_CORTE = 60; // s que se juntan cuando se queda sin datos a media reproducción
 
   var listas = {};
   var hls = false; // hay un video HLS bajo control
@@ -248,7 +248,7 @@
     if (!G.arranco && v.currentTime >= 3) G.arranco = true;
     if (!G.on) {
       if (v.paused || resta <= 6) return;
-      var obj = (G.arranco ? COLCHON_CORTE : COLCHON_INICIO) * (servidorMalo() ? 1.6 : 1);
+      var obj = (G.arranco ? COLCHON_CORTE : COLCHON_INICIO) * (servidorMalo() ? 1.5 : 1);
       if (!(ad < 1.5 || (!G.arranco && ad < obj))) return;
       G.on = true;
       G.desde = ahora;
@@ -266,7 +266,7 @@
         G.tMejor = ahora;
       }
       var meseta = ad >= 6 && ahora - G.tMejor > 6000; // el reproductor ya no guarda más
-      if (ad >= G.obj || meseta || ahora - G.desde > (servidorMalo() ? 60000 : 30000)) {
+      if (ad >= G.obj || meseta || ahora - G.desde > (servidorMalo() ? 90000 : 60000)) {
         soltar(v, ad >= G.obj ? "colchón listo" : meseta ? "el reproductor no guarda más" : "tiempo máximo");
         return;
       }
