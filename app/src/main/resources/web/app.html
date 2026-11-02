@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Archivos · Coco Surf</title>
+<link rel="stylesheet" href="/_/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="marca">Coco <span>Surf</span> · Archivos</div>
+  <div class="sub" id="sub"></div>
+  <a class="b" href="/salir">Salir</a>
+</header>
+<main>
+  <div class="bar">
+    <nav class="migas" id="migas" aria-label="Ruta"></nav>
+    <div class="buscar" id="buscar"></div>
+    <button class="b" id="bNueva" type="button"></button>
+    <button class="b" id="bCarp" type="button"></button>
+    <button class="b prim" id="bSubir" type="button"></button>
+  </div>
+  <div class="sel" id="selbar" hidden>
+    <b id="selN"></b>
+    <button class="b" id="bSelZip" type="button">Descargar ZIP</button>
+    <button class="b peligro" id="bSelDel" type="button">Borrar</button>
+    <button class="b" id="bSelNo" type="button">Quitar selección</button>
+  </div>
+  <div class="tabla"><table id="tabla"><thead id="cab"></thead><tbody id="cuerpo"></tbody></table><div id="vacio" class="vacio" hidden></div></div>
+  <div class="pie"><span id="resumen"></span><span id="libre"></span></div>
+</main>
+<input type="file" id="inArch" multiple hidden>
+<input type="file" id="inCarp" webkitdirectory hidden>
+<div class="fondo" id="ov" hidden><div class="caja" id="caja" role="dialog" aria-modal="true"></div></div>
+<div id="vista" class="vista" hidden></div>
+<div class="subidas" id="subidas" hidden>
+  <header><b id="subT">Subidas</b><button class="b icono" id="subX" type="button" aria-label="Cerrar panel" title="Cerrar"></button></header>
+  <div class="lista" id="subL"></div>
+</div>
+<div class="soltar" id="soltar" hidden><div id="soltarI">Suelta aquí para subir</div></div>
+<div class="aviso-t" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="/_/app.js"></script>
+</body>
+</html>

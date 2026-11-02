@@ -1,5 +1,10 @@
 # Cambios
 
+## 1.5.0 — 2026-11-01
+- Página para el PC (compartir por red) rehecha como un explorador de archivos: iconos por tipo, orden por nombre/tamaño/fecha, búsqueda, selección múltiple, renombrar, borrar con confirmación, nueva carpeta y vista previa (imágenes, video, audio, PDF y texto) con ← →.
+- Subidas arrastrando y soltando (también carpetas enteras) o con los botones, con barra de progreso por archivo; si el nombre ya existe se guarda como «nombre (1)».
+- Descarga de carpetas o de la selección como ZIP, sin armarlo antes en el televisor.
+
 ## 1.4.5 — 2026-10-31
 - Archivos: «Dar permiso» ahora muestra el diálogo normal de Android («¿Permitir el acceso a archivos?») en vez de mandar a Ajustes; el acceso total por Ajustes queda como botón aparte.
 

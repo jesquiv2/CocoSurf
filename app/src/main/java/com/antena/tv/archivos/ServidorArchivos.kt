@@ -7,12 +7,16 @@ import fi.iki.elonen.NanoHTTPD.MIME_PLAINTEXT
 import fi.iki.elonen.NanoHTTPD.newFixedLengthResponse
 import java.io.File
 import java.io.FileInputStream
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.net.URLEncoder
 import java.security.SecureRandom
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
 /**
@@ -42,20 +46,30 @@ class ServidorArchivos(
     private fun atender(s: IHTTPSession): Response {
         val uri = s.uri
         if (uri == "/entrar" && s.method == Method.POST) return entrar(s)
+        // Hoja de estilos y script de la página: no llevan nada privado.
+        if (uri == "/_/app.css") return recurso("web/app.css", "text/css; charset=utf-8")
+        if (uri == "/_/app.js") return recurso("web/app.js", "application/javascript; charset=utf-8")
         if (!autorizado(s)) {
-            return pagina(Response.Status.OK, "Acceso", formularioPin(null))
+            return if (uri.startsWith("/api/") || s.method == Method.POST) {
+                texto(Response.Status.UNAUTHORIZED, "Sesión caducada")
+            } else {
+                pagina(Response.Status.OK, "Acceso", formularioPin(null))
+            }
         }
         return when {
+            uri == "/api/lista" -> apiLista(s)
             uri == "/f" -> descargar(s)
+            uri == "/zip" -> zip(s)
             uri == "/subir" && s.method == Method.POST -> subir(s)
             uri == "/borrar" && s.method == Method.POST -> borrar(s)
             uri == "/carpeta" && s.method == Method.POST -> carpeta(s)
+            uri == "/renombrar" && s.method == Method.POST -> renombrar(s)
             uri == "/salir" -> {
                 val r = redirigir("/")
                 r.addHeader("Set-Cookie", "cs=; Max-Age=0; Path=/; HttpOnly")
                 r
             }
-            else -> listar(s)
+            else -> recurso("web/app.html", "text/html; charset=utf-8")
         }
     }
 
@@ -106,53 +120,20 @@ class ServidorArchivos(
 
     private fun relativa(f: File): String = f.canonicalPath.removePrefix(raizCanonica).trim('/')
 
-    private fun listar(s: IHTTPSession): Response {
-        val rel = s.parms["r"]
-        val dir = resolver(rel)?.takeIf { it.isDirectory } ?: return pagina(Response.Status.NOT_FOUND, "No existe", "<p>Esa carpeta no existe.</p>")
-        val hijos = (dir.listFiles() ?: emptyArray())
-            .sortedWith(compareBy<File>({ !it.isDirectory }, { it.name.lowercase() }))
-        val actual = relativa(dir)
-        val fmt = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-        val sb = StringBuilder()
-        // Migas de pan
-        sb.append("<p class=ruta><a href=\"/\">Inicio</a>")
-        var acumulado = ""
-        actual.split('/').filter { it.isNotEmpty() }.forEach { parte ->
-            acumulado = if (acumulado.isEmpty()) parte else "$acumulado/$parte"
-            sb.append(" / <a href=\"/?r=${url(acumulado)}\">${html(parte)}</a>")
+    private fun apiLista(s: IHTTPSession): Response {
+        val dir = resolver(s.parms["r"])?.takeIf { it.isDirectory } ?: return texto(Response.Status.NOT_FOUND, "No existe")
+        val items = JSONArray()
+        for (h in dir.listFiles() ?: emptyArray()) {
+            items.put(JSONObject().put("n", h.name).put("d", h.isDirectory).put("t", if (h.isDirectory) 0L else h.length()).put("m", h.lastModified()))
         }
-        sb.append("</p>")
-        // Subir y nueva carpeta
-        sb.append(
-            "<div class=acciones>" +
-                "<form method=post action=\"/subir?r=${url(actual)}\" enctype=\"multipart/form-data\">" +
-                "<input type=file name=archivo multiple required> <button>Subir aquí</button></form>" +
-                "<form method=post action=\"/carpeta?r=${url(actual)}\"><input name=nombre placeholder=\"Nueva carpeta\" required> <button>Crear</button></form>" +
-                "</div>",
-        )
-        sb.append("<table><tr><th>Nombre<th>Tamaño<th>Fecha<th></tr>")
-        if (actual.isNotEmpty()) {
-            val padre = actual.substringBeforeLast('/', "")
-            sb.append("<tr><td><a href=\"/?r=${url(padre)}\">⬑ ..</a><td><td><td>")
-        }
-        for (h in hijos) {
-            val r = relativa(h)
-            sb.append("<tr><td>")
-            if (h.isDirectory) {
-                sb.append("📁 <a href=\"/?r=${url(r)}\">${html(h.name)}</a><td>—")
-            } else {
-                sb.append("<a href=\"/f?r=${url(r)}\">${html(h.name)}</a><td>${tamano(h.length())}")
-            }
-            sb.append("<td>${fmt.format(Date(h.lastModified()))}<td>")
-            sb.append(
-                "<form method=post action=\"/borrar?r=${url(r)}\" onsubmit=\"return confirm('¿Borrar ${html(h.name).replace("'", "")}?')\">" +
-                    "<button class=borrar>Borrar</button></form>",
-            )
-            sb.append("</tr>")
-        }
-        sb.append("</table>")
-        if (hijos.isEmpty()) sb.append("<p class=tenue>La carpeta está vacía.</p>")
-        return pagina(Response.Status.OK, "Archivos", sb.toString())
+        val json = JSONObject()
+            .put("ruta", relativa(dir))
+            .put("raiz", raiz.name.ifEmpty { "Almacenamiento" })
+            .put("libre", runCatching { raiz.usableSpace }.getOrDefault(-1L))
+            .put("items", items)
+        val r = newFixedLengthResponse(Response.Status.OK, "application/json; charset=utf-8", json.toString())
+        r.addHeader("Cache-Control", "no-store")
+        return r
     }
 
     private fun descargar(s: IHTTPSession): Response {
@@ -174,12 +155,17 @@ class ServidorArchivos(
         }
         val r = newFixedLengthResponse(Response.Status.OK, mime, FileInputStream(f), total)
         r.addHeader("Accept-Ranges", "bytes")
-        r.addHeader("Content-Disposition", "inline; filename=\"" + f.name.replace("\"", "") + "\"")
+        r.addHeader("Content-Disposition", (if (s.parms["d"] == "1") "attachment" else "inline") + "; " + nombreCabecera(f.name))
         return r
     }
 
     private fun subir(s: IHTTPSession): Response {
-        val destino = resolver(s.parms["r"])?.takeIf { it.isDirectory } ?: return texto(Response.Status.NOT_FOUND, "Carpeta inexistente")
+        val base = resolver(s.parms["r"])?.takeIf { it.isDirectory } ?: return texto(Response.Status.NOT_FOUND, "Carpeta inexistente")
+        // `p` = subcarpeta relativa (al subir una carpeta entera).
+        val sub = s.parms["p"].orEmpty().trim('/')
+        val destino = resolver(listOf(relativa(base), sub).filter { it.isNotEmpty() }.joinToString("/"))
+            ?: return texto(Response.Status.FORBIDDEN, "No permitido")
+        destino.mkdirs()
         val temporales = HashMap<String, String>()
         s.parseBody(temporales)
         var n = 0
@@ -188,7 +174,7 @@ class ServidorArchivos(
             val original = s.parms[campo] ?: continue
             val nombre = File(original).name
             if (nombre.isBlank()) continue
-            val meta = File(destino, nombre)
+            val meta = libre(destino, nombre)
             if (!(runCatching { meta.canonicalPath }.getOrNull() ?: "").startsWith(raizCanonica)) continue
             val tmp = File(ruta)
             if (!tmp.renameTo(meta)) {
@@ -198,23 +184,92 @@ class ServidorArchivos(
             n++
         }
         Bitacora.add(LogKind.SISTEMA, "Servidor de archivos: se subieron $n archivo(s) a ${relativa(destino).ifEmpty { "/" }}")
-        return redirigir("/?r=" + url(relativa(destino)))
+        return texto(Response.Status.OK, "ok")
+    }
+
+    /** Un nombre que no pise nada: «foto.jpg» pasa a «foto (1).jpg». */
+    private fun libre(dir: File, nombre: String): File {
+        var f = File(dir, nombre)
+        if (!f.exists()) return f
+        val base = nombre.substringBeforeLast('.', nombre)
+        val ext = if (base == nombre) "" else "." + nombre.substringAfterLast('.')
+        var i = 1
+        while (f.exists()) f = File(dir, "$base ($i)$ext").also { i++ }
+        return f
     }
 
     private fun borrar(s: IHTTPSession): Response {
         val f = resolver(s.parms["r"])?.takeIf { it.canonicalPath != raizCanonica } ?: return texto(Response.Status.FORBIDDEN, "No permitido")
-        val padre = f.parentFile
         val ok = if (f.isDirectory) f.deleteRecursively() else f.delete()
         Bitacora.add(LogKind.SISTEMA, "Servidor de archivos: ${if (ok) "borrado" else "no se pudo borrar"} ${f.name}")
-        return redirigir("/?r=" + url(if (padre != null) relativa(padre) else ""))
+        return texto(if (ok) Response.Status.OK else Response.Status.INTERNAL_ERROR, if (ok) "ok" else "error")
     }
 
     private fun carpeta(s: IHTTPSession): Response {
         val destino = resolver(s.parms["r"])?.takeIf { it.isDirectory } ?: return texto(Response.Status.NOT_FOUND, "Carpeta inexistente")
         s.parseBody(HashMap())
         val nombre = File(s.parms["nombre"] ?: "").name
-        if (nombre.isNotBlank()) File(destino, nombre).mkdirs()
-        return redirigir("/?r=" + url(relativa(destino)))
+        val nueva = File(destino, nombre)
+        val ok = nombre.isNotBlank() && !nueva.exists() && nueva.mkdirs()
+        return texto(if (ok) Response.Status.OK else Response.Status.CONFLICT, if (ok) "ok" else "error")
+    }
+
+    private fun renombrar(s: IHTTPSession): Response {
+        val f = resolver(s.parms["r"])?.takeIf { it.exists() && it.canonicalPath != raizCanonica } ?: return texto(Response.Status.NOT_FOUND, "No existe")
+        s.parseBody(HashMap())
+        val nombre = File(s.parms["nombre"] ?: "").name
+        val nuevo = File(f.parentFile, nombre)
+        val ok = nombre.isNotBlank() && !nuevo.exists() && f.renameTo(nuevo)
+        return texto(if (ok) Response.Status.OK else Response.Status.CONFLICT, if (ok) "ok" else "error")
+    }
+
+    /** ZIP en vivo (sin armarlo en memoria ni en disco) de la carpeta o de los elementos `n` elegidos. */
+    private fun zip(s: IHTTPSession): Response {
+        val dir = resolver(s.parms["r"])?.takeIf { it.isDirectory } ?: return texto(Response.Status.NOT_FOUND, "No existe")
+        val elegidos = s.parameters["n"].orEmpty().map { File(it).name }.filter { it.isNotBlank() }
+        val items = if (elegidos.isNotEmpty()) elegidos.map { File(dir, it) }.filter { it.exists() } else (dir.listFiles()?.toList() ?: emptyList())
+        val entrada = PipedInputStream(1 shl 16)
+        val salida = PipedOutputStream(entrada)
+        Thread({
+            runCatching {
+                ZipOutputStream(salida).use { z -> items.forEach { agregar(z, it, it.name) } }
+            }.onFailure { runCatching { salida.close() } }
+        }, "zip-compartir").start()
+        val base = if (elegidos.size == 1) elegidos[0].substringBeforeLast('.', elegidos[0]) else dir.name.ifEmpty { raiz.name.ifEmpty { "archivos" } }
+        val r = newChunkedResponse(Response.Status.OK, "application/zip", entrada)
+        r.addHeader("Content-Disposition", "attachment; " + nombreCabecera("$base.zip"))
+        return r
+    }
+
+    private fun agregar(z: ZipOutputStream, f: File, ruta: String) {
+        // Nunca sale de la carpeta compartida (enlaces simbólicos incluidos).
+        val c = runCatching { f.canonicalPath }.getOrNull() ?: return
+        if (c != raizCanonica && !c.startsWith(raizCanonica + File.separator)) return
+        if (f.isDirectory) {
+            z.putNextEntry(ZipEntry("$ruta/"))
+            z.closeEntry()
+            f.listFiles()?.forEach { agregar(z, it, "$ruta/${it.name}") }
+        } else if (f.canRead()) {
+            z.putNextEntry(ZipEntry(ruta))
+            FileInputStream(f).use { it.copyTo(z) }
+            z.closeEntry()
+        }
+    }
+
+    private fun nombreCabecera(nombre: String): String {
+        val ascii = nombre.map { if (it.code in 0x20..0x7e && it != '"' && it != '\\') it else '_' }.joinToString("")
+        return "filename=\"$ascii\"; filename*=UTF-8''" + URLEncoder.encode(nombre, "UTF-8").replace("+", "%20")
+    }
+
+    /** Lee una página o recurso empaquetado en la app (src/main/resources/web). */
+    private fun recurso(ruta: String, mime: String): Response {
+        val bytes = textos.getOrPut(ruta) {
+            ServidorArchivos::class.java.classLoader?.getResourceAsStream(ruta)?.use { it.readBytes() } ?: ByteArray(0)
+        }
+        if (bytes.isEmpty()) return texto(Response.Status.INTERNAL_ERROR, "Falta el recurso $ruta")
+        val r = newFixedLengthResponse(Response.Status.OK, mime, java.io.ByteArrayInputStream(bytes), bytes.size.toLong())
+        r.addHeader("Cache-Control", "no-cache")
+        return r
     }
 
     // ── Utilidades de respuesta ───────────────────────────────────────────
@@ -225,14 +280,16 @@ class ServidorArchivos(
     private fun texto(estado: Response.IStatus, cuerpo: String) = newFixedLengthResponse(estado, MIME_PLAINTEXT, cuerpo)
 
     private fun formularioPin(aviso: String?): String =
-        "<h1>Coco Surf · Archivos</h1><p>Escribe el PIN que aparece en la pantalla del televisor.</p>" +
-            (if (aviso != null) "<p class=aviso>${html(aviso)}</p>" else "") +
-            "<form method=post action=\"/entrar\"><input name=pin inputmode=numeric autofocus maxlength=4 placeholder=\"PIN\"> <button>Entrar</button></form>"
+        "<div class=acceso><div class=caja><h1>Coco Surf · Archivos</h1><p>Escribe el PIN que aparece en la pantalla del televisor.</p>" +
+            (if (aviso != null) "<p class=mal role=alert>${html(aviso)}</p>" else "") +
+            "<form method=post action=\"/entrar\"><input name=pin type=password inputmode=numeric autocomplete=off autofocus maxlength=4 " +
+            "placeholder=\"····\" aria-label=PIN style=\"width:100%;margin-bottom:14px\">" +
+            "<button class=\"b prim\" style=\"width:100%\">Entrar</button></form></div></div>"
 
     private fun pagina(estado: Response.IStatus, titulo: String, cuerpo: String): Response {
         val doc = "<!doctype html><html lang=es><head><meta charset=utf-8>" +
-            "<meta name=viewport content=\"width=device-width,initial-scale=1\"><title>${html(titulo)} · Coco Surf</title><style>$ESTILO</style></head>" +
-            "<body><header><b>Coco Surf</b> · Archivos <a class=salir href=\"/salir\">Salir</a></header><main>$cuerpo</main></body></html>"
+            "<meta name=viewport content=\"width=device-width,initial-scale=1\"><title>${html(titulo)} · Coco Surf</title>" +
+            "<link rel=stylesheet href=\"/_/app.css\"></head><body>$cuerpo</body></html>"
         return newFixedLengthResponse(estado, "text/html; charset=utf-8", doc)
     }
 
@@ -241,16 +298,7 @@ class ServidorArchivos(
     private fun url(t: String) = URLEncoder.encode(t, "UTF-8")
 
     companion object {
-        private const val ESTILO =
-            "body{margin:0;background:#0b0f16;color:#e8ecf3;font:15px system-ui,sans-serif}" +
-                "header{padding:14px 22px;background:#121926;border-bottom:1px solid #243047}" +
-                "main{max-width:1000px;margin:0 auto;padding:18px 22px}a{color:#4fd8c4;text-decoration:none}a:hover{text-decoration:underline}" +
-                ".salir{float:right;color:#9aa6bd}table{width:100%;border-collapse:collapse;margin-top:14px}" +
-                "th,td{text-align:left;padding:9px 8px;border-bottom:1px solid #1d2638}th{color:#9aa6bd;font-weight:500}" +
-                "button,input{font:inherit;border-radius:8px;border:1px solid #2a3750;background:#16203a;color:#e8ecf3;padding:7px 12px}" +
-                "button{cursor:pointer}.borrar{background:#2a1618;border-color:#5a2a2e;color:#ff8f8f}" +
-                ".acciones{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0}.tenue{color:#9aa6bd}.aviso{color:#ff8f8f}" +
-                "form{margin:0;display:inline-block}.ruta{color:#9aa6bd}"
+        private val textos = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
 
         /** Dirección IPv4 del aparato en la red local (Wi‑Fi o cable), o null si no hay red. */
         fun direccionLocal(): String? = runCatching {
