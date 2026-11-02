@@ -46,6 +46,8 @@ object Recursos {
         val url: String,
         /** Reparto de la RAM de todo el aparato (null si no se pudo leer). */
         val sis: MemoriaSistema.Desglose? = null,
+        /** Precarga de video HLS de la página (null si no hay). */
+        val precarga: PrecargaEstado.Estado? = null,
     )
 
     // ── Contadores del muestreo anterior ──
@@ -164,6 +166,7 @@ object Recursos {
             vivas = vivas,
             url = url,
             sis = MemoriaSistema.leer(),
+            precarga = PrecargaEstado.actual(),
         )
     }
 

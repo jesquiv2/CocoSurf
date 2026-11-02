@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.7.0 — 2026-11-01
+- Aviso de espera discreto: un punto ámbar que palpita arriba a la derecha (con el nombre del servidor sólo si da problemas), en vez del cuadro grande.
+- Detección de servidor con problemas (descarga más lenta que ~2x el video, fallos de trozos, o el video se queda sin datos): durante 2 minutos la precarga sube de 60 a 120 s por delante, abre 4 descargas a la vez y las pausas juntan un colchón 60 % mayor (hasta 60 s de espera).
+- La precarga se mide en segundos (60 s normal) en vez de en trozos.
+- Monitor: nuevas cifras «Caché video» (segundos ya guardados en disco por delante), «Colchón» (lo que tiene el reproductor) y «Servidor» (con ⚠ si da problemas). «Caché video» y «Colchón» se activan por defecto en instalaciones nuevas; si ya tenías el monitor configurado, actívalas en Configuración → Monitor.
+
 ## 1.6.2 — 2026-11-01
 - Video HLS (JKAnime y similares): al arrancar, el video se pausa hasta tener ~25 s cargados y luego sigue; si a media reproducción se queda sin datos, hace una pausa breve para juntar ~15 s en vez de trabarse a cada rato. Mientras tanto muestra en pantalla «Cargando video» / «Conexión inestable» con los segundos juntados. Cada pausa tiene tope de 30 s.
 - La precarga a disco cede el ancho de banda al reproductor mientras este llena su propio colchón.

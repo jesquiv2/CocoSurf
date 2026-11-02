@@ -927,6 +927,15 @@ object GeckoMotor {
                         Log.i(TAG, "precarga: " + obj.optString("msg"))
                         com.antena.tv.log.Bitacora.add(com.antena.tv.log.LogKind.SISTEMA, "Precarga de video: " + obj.optString("msg"))
                     }
+                    obj.optString("tag") == "precargaestado" -> PrecargaEstado.poner(
+                        PrecargaEstado.Estado(
+                            servidor = obj.optString("host"),
+                            colchonS = obj.optDouble("colchon", 0.0).toFloat(),
+                            cacheS = obj.optDouble("cache", 0.0).toFloat(),
+                            malo = obj.optBoolean("malo"),
+                            pausa = obj.optBoolean("pausa"),
+                        ),
+                    )
                     obj.has("y") -> _scrollY.value = obj.optInt("y", -1)
                     // Cachear el elemento señalado: «foco» lo refresca al
                     // navegar con el D-pad y «contexto» al mantener OK; el

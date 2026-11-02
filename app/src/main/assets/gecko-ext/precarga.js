@@ -11,16 +11,21 @@
   if (window.__antenaPrecarga) return;
   window.__antenaPrecarga = true;
 
-  var ADELANTE = 12; // trozos (~1 min) que se mantienen bajados por delante del que se está viendo
+  var VENTANA = 60; // s de video que se mantienen bajados por delante de lo que se está viendo
+  var VENTANA_MALA = 120; // ídem cuando el servidor da problemas
   var MARGEN = 12; // lo inmediato lo trae el propio reproductor
   var PARALELO = 2; // descargas simultáneas
+  var PARALELO_MALO = 4; // con servidor lento se abren más conexiones (muchos limitan cada una)
   var MAX_FALLOS = 3;
   var COLCHON_INICIO = 25; // s de video que se juntan antes de arrancar
   var COLCHON_CORTE = 15; // s que se juntan cuando se queda sin datos a media reproducción
-  var ESPERA_MAX = 30000; // ms: tope de cada pausa, para no dejar el video detenido
 
   var listas = {};
   var hls = false; // hay un video HLS bajo control
+  var servidor = ""; // servidor de donde salen los trozos
+  var LA = null; // lista activa
+  var malaHasta = 0; // hasta cuándo se considera que el servidor da problemas
+  var ritmo = 0; // s de video bajados por segundo real (media móvil)
   var G = { on: false, arranco: false, obj: 0, desde: 0, mejor: 0, tMejor: 0, crec: 0, ultimo: 0, motivo: "" };
 
   function avisar(texto) {
@@ -57,6 +62,22 @@
     return segs;
   }
 
+  function servidorMalo() {
+    return Date.now() < malaHasta;
+  }
+
+  function marcarMalo(por) {
+    var primera = !servidorMalo();
+    malaHasta = Date.now() + 120000;
+    if (primera) avisar("servidor con problemas (" + servidor + "): " + por + "; la precarga se amplía a " + VENTANA_MALA + " s");
+  }
+
+  function medirRitmo(d, ms) {
+    var r = d / Math.max(ms / 1000, 0.05);
+    ritmo = ritmo ? ritmo * 0.7 + r * 0.3 : r;
+    if (ritmo < 2) marcarMalo("descarga lenta (" + Math.round(ritmo * 10) / 10 + "x)");
+  }
+
   function posicion() {
     var v = document.querySelector("video");
     return v && isFinite(v.currentTime) ? v.currentTime : 0;
@@ -65,6 +86,7 @@
   function lanzar(L, i) {
     L.pedidos[i] = true;
     L.enVuelo++;
+    var t0 = Date.now();
     fetch(L.segs[i].u)
       .then(function (r) {
         if (!r.ok) throw new Error("http " + r.status);
@@ -72,6 +94,7 @@
       })
       .then(function (b) {
         L.hechos[i] = true;
+        medirRitmo(L.segs[i].d, Date.now() - t0);
         L.bajados += b.byteLength;
         L.n++;
         if (L.n % 20 === 0) {
@@ -79,6 +102,7 @@
         }
       })
       .catch(function () {
+        marcarMalo("falla al bajar un trozo");
         L.fallos[i] = (L.fallos[i] || 0) + 1;
         if (L.fallos[i] >= MAX_FALLOS) L.hechos[i] = true;
         else delete L.pedidos[i];
@@ -102,11 +126,12 @@
     // Trozo que se está viendo; se baja una ventana corta por delante y se avanza con la reproducción.
     var actual = 0;
     while (actual < L.segs.length - 1 && L.segs[actual].ini + L.segs[actual].d <= pos) actual++;
-    var fin = Math.min(L.segs.length - 1, actual + ADELANTE);
-    for (var i = actual; i <= fin; i++) {
+    var malo = servidorMalo();
+    var tope = pos + (malo ? VENTANA_MALA : VENTANA);
+    for (var i = actual; i < L.segs.length && L.segs[i].ini <= tope; i++) {
       var s = L.segs[i];
       if (L.hechos[i] || L.pedidos[i] || s.ini + s.d < pos + MARGEN) continue;
-      if (L.enVuelo >= PARALELO) break;
+      if (L.enVuelo >= (malo ? PARALELO_MALO : PARALELO)) break;
       lanzar(L, i);
     }
   }
@@ -115,8 +140,14 @@
     var L = { segs: segs, hechos: {}, pedidos: {}, fallos: {}, enVuelo: 0, n: 0, bajados: 0, reloj: 0 };
     listas[url] = L;
     hls = true;
+    LA = L;
     G.arranco = false;
-    avisar("lista de " + segs.length + " trozos en " + location.hostname + ": precargando " + ADELANTE + " trozos por delante");
+    try {
+      servidor = new URL(segs[0].u).hostname;
+    } catch (e) {
+      servidor = location.hostname;
+    }
+    avisar("lista de " + segs.length + " trozos en " + servidor + ": precargando " + VENTANA + " s por delante");
     L.reloj = setInterval(function () {
       paso(L);
     }, 1500);
@@ -148,46 +179,45 @@
     return 0;
   }
 
-  // Aviso en pantalla mientras el video espera (se pone dentro del elemento a pantalla completa si lo hay).
+  // Aviso en pantalla mientras el video espera: un punto que palpita arriba a la derecha (con el nombre del
+  // servidor sólo si da problemas). Va dentro del elemento a pantalla completa si lo hay.
   var panel = null;
-  var linea1 = null;
-  var linea2 = null;
-  function mostrar(t1, t2) {
+  var rotulo = null;
+  function mostrar(texto) {
     var host = document.fullscreenElement;
     if (!host || host.tagName === "VIDEO") host = document.body || document.documentElement;
     if (!panel) {
       var css = document.createElement("style");
-      css.textContent = "@keyframes antena-giro{to{transform:rotate(360deg)}}";
+      css.textContent = "@keyframes antena-pulso{0%,100%{transform:scale(.75);opacity:.45}50%{transform:scale(1.15);opacity:1}}";
       (document.head || host).appendChild(css);
       panel = document.createElement("div");
       panel.style.cssText =
-        "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2147483647;" +
-        "background:rgba(0,0,0,.85);color:#fff;font-family:sans-serif;padding:20px 30px;" +
-        "border-radius:16px;text-align:center;pointer-events:none;max-width:80%";
-      var rueda = document.createElement("div");
-      rueda.style.cssText =
-        "width:36px;height:36px;margin:0 auto 12px;border:4px solid rgba(255,255,255,.25);" +
-        "border-top-color:#fff;border-radius:50%;animation:antena-giro .9s linear infinite";
-      linea1 = document.createElement("div");
-      linea1.style.cssText = "font-size:22px;font-weight:700";
-      linea2 = document.createElement("div");
-      linea2.style.cssText = "font-size:16px;margin-top:6px;opacity:.85";
-      panel.appendChild(rueda);
-      panel.appendChild(linea1);
-      panel.appendChild(linea2);
+        "position:fixed;top:14px;right:14px;z-index:2147483647;display:flex;align-items:center;gap:8px;" +
+        "pointer-events:none;font-family:sans-serif";
+      var punto = document.createElement("div");
+      punto.style.cssText =
+        "width:18px;height:18px;border-radius:50%;background:#ffb020;" +
+        "box-shadow:0 0 10px 2px rgba(255,176,32,.7);animation:antena-pulso 1s ease-in-out infinite";
+      rotulo = document.createElement("div");
+      rotulo.style.cssText = "font-size:12px;color:#fff;background:rgba(0,0,0,.6);padding:3px 7px;border-radius:8px";
+      panel.appendChild(rotulo);
+      panel.appendChild(punto);
     }
     if (panel.parentNode !== host) host.appendChild(panel);
-    linea1.textContent = t1;
-    linea2.textContent = t2;
+    rotulo.textContent = texto;
+    rotulo.style.display = texto ? "block" : "none";
   }
   function ocultar() {
     if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
   }
 
   function soltar(v, por) {
+    var dur = Date.now() - G.desde;
     G.on = false;
     G.arranco = true;
     ocultar();
+    if (por === "tiempo máximo") marcarMalo("pausa larga sin llenar el colchón");
+    else if (por === "colchón listo" && dur > 8000) marcarMalo("tardó " + Math.round(dur / 1000) + " s en juntar el colchón");
     avisar(
       "reanudado tras " + Math.round((Date.now() - G.desde) / 1000) + " s con " + Math.round(adelante(v)) + " s de colchón (" + por + ")"
     );
@@ -218,7 +248,7 @@
     if (!G.arranco && v.currentTime >= 3) G.arranco = true;
     if (!G.on) {
       if (v.paused || resta <= 6) return;
-      var obj = G.arranco ? COLCHON_CORTE : COLCHON_INICIO;
+      var obj = (G.arranco ? COLCHON_CORTE : COLCHON_INICIO) * (servidorMalo() ? 1.6 : 1);
       if (!(ad < 1.5 || (!G.arranco && ad < obj))) return;
       G.on = true;
       G.desde = ahora;
@@ -226,6 +256,7 @@
       G.tMejor = ahora;
       G.obj = Math.min(obj, resta - 1);
       G.motivo = G.arranco ? "conexión inestable" : "arranque";
+      if (G.arranco) marcarMalo("se quedó sin datos");
       v.pause();
       avisar("pausa para juntar " + Math.round(G.obj) + " s de video (" + G.motivo + ") en el minuto " + Math.round(v.currentTime / 6) / 10);
     } else {
@@ -235,17 +266,41 @@
         G.tMejor = ahora;
       }
       var meseta = ad >= 6 && ahora - G.tMejor > 6000; // el reproductor ya no guarda más
-      if (ad >= G.obj || meseta || ahora - G.desde > ESPERA_MAX) {
+      if (ad >= G.obj || meseta || ahora - G.desde > (servidorMalo() ? 60000 : 30000)) {
         soltar(v, ad >= G.obj ? "colchón listo" : meseta ? "el reproductor no guarda más" : "tiempo máximo");
         return;
       }
     }
-    mostrar(
-      (G.arranco ? "Conexión inestable" : "Cargando video") + " · " + Math.floor(ad) + " de " + Math.round(G.obj) + " s",
-      G.arranco ? "Pausa breve para juntar video y evitar cortes" : "Juntando unos segundos antes de empezar"
-    );
+    mostrar(servidorMalo() ? servidor : "");
   }
   setInterval(vigilarColchon, 500);
+
+  // Estado para el monitor de la app: colchón del reproductor y video ya guardado en disco por delante.
+  function enviarEstado() {
+    var v = document.querySelector("video");
+    if (!hls || !LA || !v) return;
+    var pos = v.currentTime;
+    var cubierto = pos;
+    for (var i = 0; i < LA.segs.length; i++) {
+      var fin = LA.segs[i].ini + LA.segs[i].d;
+      if (fin <= pos) continue;
+      if (LA.hechos[i] || fin < pos + MARGEN) cubierto = fin;
+      else break;
+    }
+    try {
+      browser.runtime.sendNativeMessage("antena", {
+        tag: "precargaestado",
+        host: servidor,
+        colchon: Math.round(adelante(v) * 10) / 10,
+        cache: Math.max(0, Math.round((cubierto - pos) * 10) / 10),
+        malo: servidorMalo(),
+        pausa: G.on,
+      });
+    } catch (e) {
+      /* canal no listo */
+    }
+  }
+  setInterval(enviarEstado, 1000);
 
   // Diagnóstico: los trozos que pide el reproductor y tardan pocos ms salieron de la caché.
   var reuso = { rapidos: 0, lentos: 0 };

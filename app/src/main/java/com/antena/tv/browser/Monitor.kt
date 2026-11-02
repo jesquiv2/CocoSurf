@@ -71,6 +71,16 @@ val METRICAS_MONITOR = listOf(
     MetricaMonitor("sis_kernel", "Kernel", MORADO, { it.sis?.kernelMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.kernelMb} MB" } ?: "—" },
     MetricaMonitor("sis_drv", "Vídeo/gráf.", ROJO, { it.sis?.sinContabilizarMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.sinContabilizarMb} MB" } ?: "—" },
     MetricaMonitor("red", "Red ↓", VERDE, { it.redKbs }) { "${it.redKbs.toInt()} KB/s" },
+    // Precarga de video HLS (JKAnime y similares): lo guardado en disco por delante y el colchón del reproductor.
+    MetricaMonitor("cache_video", "Caché video", VERDE, { it.precarga?.cacheS }, { 130f }) { m ->
+        m.precarga?.let { "${it.cacheS.toInt()} s" } ?: "—"
+    },
+    MetricaMonitor("colchon_video", "Colchón", AZUL, { it.precarga?.colchonS }, { 40f }) { m ->
+        m.precarga?.let { "${it.colchonS.toInt()} s" } ?: "—"
+    },
+    MetricaMonitor("servidor_video", "Servidor", NARANJA) { m ->
+        m.precarga?.let { (if (it.malo) "⚠ " else "") + it.servidor.take(10) } ?: "—"
+    },
     MetricaMonitor("fps", "FPS UI", Color.White, { it.fps.toFloat() }, { 60f }) { "${it.fps}" },
     MetricaMonitor("termico", "Térmico", ROJO) { m ->
         when (m.termico) {
@@ -91,7 +101,7 @@ object MonitorConfig {
     /** "sup_izq", "sup_der", "inf_izq" o "inf_der". */
     var posicion by mutableStateOf("sup_der")
     var graficas by mutableStateOf(true)
-    var metricas by mutableStateOf(setOf("ram", "presion", "paginas", "complementos", "cpu", "fps"))
+    var metricas by mutableStateOf(setOf("ram", "presion", "paginas", "complementos", "cpu", "fps", "cache_video", "colchon_video"))
     var tecla by mutableIntStateOf(KeyEvent.KEYCODE_INFO)
     /** Esperando que el usuario pulse la tecla que abrirá el monitor. */
     var capturando by mutableStateOf(false)
