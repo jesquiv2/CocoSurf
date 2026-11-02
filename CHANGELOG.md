@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.6.2 — 2026-11-01
+- Video HLS (JKAnime y similares): al arrancar, el video se pausa hasta tener ~25 s cargados y luego sigue; si a media reproducción se queda sin datos, hace una pausa breve para juntar ~15 s en vez de trabarse a cada rato. Mientras tanto muestra en pantalla «Cargando video» / «Conexión inestable» con los segundos juntados. Cada pausa tiene tope de 30 s.
+- La precarga a disco cede el ancho de banda al reproductor mientras este llena su propio colchón.
+
 ## 1.6.1 — 2026-11-01
 - Precarga de video en ventana corta: en vez de 10 minutos, mantiene bajados unos 12 trozos (~1 min) por delante del que estás viendo y avanza con la reproducción. Menos disco y datos, y deja de bajar al terminar el video.
 
