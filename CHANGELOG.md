@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.9.1 — 2026-11-02
+- Con un servidor de video lento (según la Bitácora de la TV) la pausa para juntar colchón se repetía cada 90 s y casi no dejaba reproducir. Ahora, si tras 15 s pausado el colchón no crece, se reanuda y no se vuelve a pausar durante 5 minutos; la espera máxima baja a 45 s (60 s con servidor con problemas).
+
 ## 1.9.0 — 2026-11-02
 - Medición de velocidad en la Bitácora, para tener datos reales de dónde se va la espera:
   - Arranque: «ventana creada», «motor Firefox creado», «extensión interna lista», «complemento listo (uBlock)» y «proceso de contenido listo», cada uno con los segundos desde que se abre la app.

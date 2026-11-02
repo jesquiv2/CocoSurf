@@ -216,7 +216,11 @@
     G.on = false;
     G.arranco = true;
     ocultar();
-    if (por === "tiempo máximo") marcarMalo("pausa larga sin llenar el colchón");
+    // Si pausar no hizo crecer el colchón, la pausa no sirve: se deja de pausar un rato para no empeorar.
+    if ((por === "tiempo máximo" || por === "sin avance") && adelante(v) < 8) {
+      G.sinPausaHasta = Date.now() + 300000;
+      marcarMalo("pausar no llena el colchón; se deja de pausar 5 min");
+    } else if (por === "tiempo máximo") marcarMalo("pausa larga sin llenar el colchón");
     else if (por === "colchón listo" && dur > 8000) marcarMalo("tardó " + Math.round(dur / 1000) + " s en juntar el colchón");
     avisar(
       "reanudado tras " + Math.round((Date.now() - G.desde) / 1000) + " s con " + Math.round(adelante(v)) + " s de colchón (" + por + ")"
@@ -248,6 +252,7 @@
     if (!G.arranco && v.currentTime >= 3) G.arranco = true;
     if (!G.on) {
       if (v.paused || resta <= 6) return;
+      if (G.sinPausaHasta && ahora < G.sinPausaHasta) return;
       var obj = (G.arranco ? COLCHON_CORTE : COLCHON_INICIO) * (servidorMalo() ? 1.5 : 1);
       if (!(ad < 1.5 || (!G.arranco && ad < obj))) return;
       G.on = true;
@@ -266,8 +271,9 @@
         G.tMejor = ahora;
       }
       var meseta = ad >= 6 && ahora - G.tMejor > 6000; // el reproductor ya no guarda más
-      if (ad >= G.obj || meseta || ahora - G.desde > (servidorMalo() ? 90000 : 60000)) {
-        soltar(v, ad >= G.obj ? "colchón listo" : meseta ? "el reproductor no guarda más" : "tiempo máximo");
+      var sinAvance = ad < 6 && ahora - G.tMejor > 15000; // 15 s pausado y el colchón no crece
+      if (ad >= G.obj || meseta || sinAvance || ahora - G.desde > (servidorMalo() ? 60000 : 45000)) {
+        soltar(v, ad >= G.obj ? "colchón listo" : meseta ? "el reproductor no guarda más" : sinAvance ? "sin avance" : "tiempo máximo");
         return;
       }
     }
