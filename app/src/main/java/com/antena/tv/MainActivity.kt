@@ -34,6 +34,14 @@ class MainActivity : ComponentActivity() {
     var onUpInPage: (() -> Boolean)? = null
     /** Android avisa de poca memoria: la pantalla suelta lo que no se ve. */
     var alRecortarMemoria: ((Int) -> Unit)? = null
+    /** Mantener «Atrás» ~3 s: la pantalla pregunta si se quiere cerrar la aplicación. */
+    var alAtrasLargo: (() -> Unit)? = null
+    private var atrasLargoDisparado = false
+    private val manejador = android.os.Handler(android.os.Looper.getMainLooper())
+    private val disparoAtrasLargo = Runnable {
+        atrasLargoDisparado = true
+        alAtrasLargo?.invoke()
+    }
     private var okDownAt = 0L
     private var longOkFired = false
 
@@ -128,6 +136,24 @@ class MainActivity : ComponentActivity() {
                 alMonitorCambio?.invoke()
             }
             return true
+        }
+        // «Atrás» mantenido ~3 s → diálogo de salida. Al soltar, ese «Atrás» ya no retrocede.
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            when (event.action) {
+                KeyEvent.ACTION_DOWN -> if (event.repeatCount == 0) {
+                    atrasLargoDisparado = false
+                    manejador.removeCallbacks(disparoAtrasLargo)
+                    manejador.postDelayed(disparoAtrasLargo, 3000)
+                }
+                KeyEvent.ACTION_UP -> {
+                    manejador.removeCallbacks(disparoAtrasLargo)
+                    if (atrasLargoDisparado) {
+                        atrasLargoDisparado = false
+                        return true
+                    }
+                }
+            }
+            if (atrasLargoDisparado) return true
         }
         // El cursor del mando va primero: con él activo, las flechas y OK son suyos.
         if (Puntero.alTecla(this, event)) return true

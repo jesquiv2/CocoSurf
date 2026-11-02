@@ -1,5 +1,10 @@
 # Cambios
 
+## 1.7.2 — 2026-11-01
+- Descarga de la actualización resistente a cortes: si la conexión se cae, el archivo parcial se conserva y se retoma donde quedó (hasta 30 reintentos seguidos), en vez de botarlo y empezar de cero. Si se rinde, pulsar de nuevo continúa desde ese punto.
+- Monitor: la velocidad de red cambia de unidad sola (KB/s → MB/s al pasar de 1024 KB/s).
+- Mantener «Atrás» unos 3 segundos abre la confirmación para cerrar la aplicación.
+
 ## 1.7.1 — 2026-11-01
 - Colchón de video más grande: tras quedarse sin datos junta ~60 s (hasta 90 s si el servidor da problemas) y al arrancar ~40 s; cada pausa puede durar hasta 60 s (90 s con servidor lento).
 - Monitor: el ⚠ de servidor con problemas pasa delante del número de «Colchón» y la fila «Servidor» es más ancha para leer el nombre completo.

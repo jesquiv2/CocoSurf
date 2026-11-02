@@ -1870,6 +1870,22 @@ fun BrowserScreen() {
         }
     }
 
+    // Mantener «Atrás» unos 3 s pregunta si se quiere cerrar la aplicación (desde cualquier pantalla).
+    DisposableEffect(Unit) {
+        val activity = context as? MainActivity
+        activity?.alAtrasLargo = {
+            if (!confirmarSalida) {
+                if (pantallaCompleta) {
+                    webTabs[activeId]?.salirPantallaCompleta()
+                    pantallaCompleta = false
+                }
+                closeOverlay()
+                confirmarSalida = true
+            }
+        }
+        onDispose { activity?.alAtrasLargo = null }
+    }
+
     // Paso 2 · las pestañas internas refrescan sus datos al entrar y se recuerda
     // la última página web vista (para «Usar esta página» de Configuración).
     LaunchedEffect(activeId) {

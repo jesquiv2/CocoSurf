@@ -14,6 +14,8 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
@@ -66,7 +68,7 @@ object Actualizador {
         carpeta(c).listFiles()?.forEach { f ->
             val n = f.name
             val v = patron.matchEntire(n)?.groupValues?.get(1) ?: return@forEach
-            val sobra = n.endsWith(".part") || !esMasNueva(v, actual) || (conservar != null && v != conservar)
+            val sobra = !esMasNueva(v, actual) || (conservar != null && v != conservar)
             if (sobra && f.delete()) Bitacora.add(LogKind.SISTEMA, "Actualizador: borrado $n")
         }
     }
@@ -138,54 +140,91 @@ object Actualizador {
         return r
     }
 
-    /** Baja el APK a la carpeta de descargas de la app, con porcentaje. */
+    /** Reintentos seguidos (sin avanzar) antes de rendirse; la descarga cortada se retoma donde quedó. */
+    private const val REINTENTOS = 30
+
+    /**
+     * Baja el APK a la carpeta de descargas de la app, con porcentaje. Si se corta la conexión, el
+     * parcial se conserva y se retoma con `Range` (reintentando solo), en vez de empezar de cero.
+     */
     suspend fun descargar(c: Context, nueva: Estado.Nueva) {
         estado = Estado.Descargando(nueva.version, 0)
         val r = withContext(Dispatchers.IO) {
-            runCatching {
-                val destino = apkDe(c, nueva.version)
-                val parcial = File(destino.path + ".part")
-                val con = (URL(nueva.urlApk).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000
-                    readTimeout = 30000
-                    instanceFollowRedirects = true
-                    setRequestProperty("User-Agent", "CocoSurf/" + versionActual(c))
-                }
+            val destino = apkDe(c, nueva.version)
+            val parcial = File(destino.path + ".part")
+            var fallos = 0
+            while (true) {
+                ensureActive()
+                val antes = parcial.length()
                 try {
-                    val total = con.contentLengthLong
-                    var hecho = 0L
-                    var ultimo = -1
-                    con.inputStream.use { entrada ->
-                        parcial.outputStream().use { salida ->
-                            val buf = ByteArray(64 * 1024)
-                            while (true) {
-                                val n = entrada.read(buf)
-                                if (n < 0) break
-                                salida.write(buf, 0, n)
-                                hecho += n
-                                if (total > 0) {
-                                    val pct = (hecho * 100 / total).toInt()
-                                    if (pct != ultimo) {
-                                        ultimo = pct
-                                        estado = Estado.Descargando(nueva.version, pct)
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    bajarTramo(c, nueva, parcial)
                     if (nueva.bytes > 0 && parcial.length() != nueva.bytes) {
-                        parcial.delete()
-                        return@runCatching Estado.Error("La descarga quedó incompleta; vuelve a intentarlo.")
+                        throw java.io.IOException("la descarga quedó incompleta")
                     }
                     destino.delete()
                     parcial.renameTo(destino)
-                    Estado.Listo(nueva.version, destino)
-                } finally {
-                    con.disconnect()
+                    return@withContext Estado.Listo(nueva.version, destino)
+                } catch (e: Exception) {
+                    ensureActive()
+                    // Si el tramo avanzó algo, no cuenta como fallo seguido.
+                    fallos = if (parcial.length() > antes) 1 else fallos + 1
+                    val pct = if (nueva.bytes > 0) (parcial.length() * 100 / nueva.bytes).toInt() else 0
+                    Bitacora.add(LogKind.SISTEMA, "Actualizador: conexión cortada al $pct % (${e.message}); reintento $fallos")
+                    if (fallos > REINTENTOS) {
+                        return@withContext Estado.Error(
+                            "Se cortó la conexión al $pct %. Pulsa de nuevo para continuar desde ahí.",
+                        )
+                    }
+                    delay(minOf(fallos, 5) * 2000L)
                 }
-            }.getOrElse { Estado.Error("No se pudo descargar: ${it.message}") }
+            }
+            @Suppress("UNREACHABLE_CODE")
+            Estado.Error("")
         }
         estado = r
+    }
+
+    /** Un tramo de la descarga: continúa el parcial si el servidor acepta `Range`, o empieza de cero. */
+    private fun bajarTramo(c: Context, nueva: Estado.Nueva, parcial: File) {
+        var hecho = parcial.length()
+        if (nueva.bytes > 0 && hecho > nueva.bytes) {
+            parcial.delete()
+            hecho = 0
+        }
+        val con = (URL(nueva.urlApk).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10000
+            readTimeout = 30000
+            instanceFollowRedirects = true
+            setRequestProperty("User-Agent", "CocoSurf/" + versionActual(c))
+            if (hecho > 0) setRequestProperty("Range", "bytes=$hecho-")
+        }
+        try {
+            val sigue = con.responseCode == 206
+            if (!sigue) hecho = 0 // el servidor mandó todo desde el principio
+            if (con.responseCode !in 200..299) throw java.io.IOException("GitHub respondió ${con.responseCode}")
+            val total = if (nueva.bytes > 0) nueva.bytes else hecho + con.contentLengthLong
+            var ultimo = -1
+            con.inputStream.use { entrada ->
+                java.io.FileOutputStream(parcial, sigue).use { salida ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = entrada.read(buf)
+                        if (n < 0) break
+                        salida.write(buf, 0, n)
+                        hecho += n
+                        if (total > 0) {
+                            val pct = (hecho * 100 / total).toInt()
+                            if (pct != ultimo) {
+                                ultimo = pct
+                                estado = Estado.Descargando(nueva.version, pct)
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            con.disconnect()
+        }
     }
 
     /** Abre el instalador de Android con el APK descargado (pide antes el permiso de «apps desconocidas»). */

@@ -73,7 +73,7 @@ val METRICAS_MONITOR = listOf(
     MetricaMonitor("sis_cache", "Caché arch.", VERDE, { it.sis?.cacheMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.cacheMb} MB" } ?: "—" },
     MetricaMonitor("sis_kernel", "Kernel", MORADO, { it.sis?.kernelMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.kernelMb} MB" } ?: "—" },
     MetricaMonitor("sis_drv", "Vídeo/gráf.", ROJO, { it.sis?.sinContabilizarMb?.toFloat() }, { it.totalMb.toFloat() }) { m -> m.sis?.let { "${it.sinContabilizarMb} MB" } ?: "—" },
-    MetricaMonitor("red", "Red ↓", VERDE, { it.redKbs }) { "${it.redKbs.toInt()} KB/s" },
+    MetricaMonitor("red", "Red ↓", VERDE, { it.redKbs }) { if (it.redKbs >= 1024f) "%.1f MB/s".format(java.util.Locale.US, it.redKbs / 1024f) else "${it.redKbs.toInt()} KB/s" },
     // Precarga de video HLS (JKAnime y similares): lo guardado en disco por delante y el colchón del reproductor.
     MetricaMonitor("cache_video", "Caché video", VERDE, { it.precarga?.cacheS }, { 130f }) { m ->
         m.precarga?.let { "${it.cacheS.toInt()} s" } ?: "—"
