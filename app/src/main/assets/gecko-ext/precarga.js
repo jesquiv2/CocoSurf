@@ -78,6 +78,165 @@
     if (ritmo < 2) marcarMalo("descarga lenta (" + Math.round(ritmo * 10) / 10 + "x)");
   }
 
+  // ── Servidores lentos ────────────────────────────────────────────────────────────────────────
+  // Muchas CDN reparten los trozos entre cdn1, cdn2, cdn3… y casi siempre alguno va mucho más lento
+  // (medido: cdn4 y cdn6 de ducvomes tardan 15–80 s por trozo y cdn1/2/3/5 ~1 s). Cada trozo que cae
+  // en uno lento congela el video. Al empezar se prueba un trozo de cada servidor de la familia y, si
+  // el mismo archivo existe en uno rápido, el fondo redirige ahí los pedidos del lento.
+  var desvios = {}; // servidor lento → servidor rápido
+
+  function hostDe(u) {
+    try {
+      return new URL(u).host;
+    } catch (e) {
+      return "";
+    }
+  }
+
+  /** «cdn4.sitio.com» → «cdn#.sitio.com»: servidores que sólo se distinguen por un número. */
+  function familia(h) {
+    var m = /^([a-z-]*?)(\d+)(\..+)$/i.exec(h);
+    return m ? m[1] + "#" + m[3] : "";
+  }
+
+  function mapear(u) {
+    var h = hostDe(u);
+    var a = desvios[h];
+    return a ? u.replace("//" + h + "/", "//" + a + "/") : u;
+  }
+
+  function avisarFondo(m) {
+    try {
+      var p = browser.runtime.sendMessage(m);
+      if (p && p.catch) p.catch(function () {});
+    } catch (e) {
+      /* el fondo aún no está listo */
+    }
+  }
+
+  function quitarDesvios() {
+    if (!Object.keys(desvios).length) return;
+    desvios = {};
+    avisarFondo({ limpiar: true });
+    avisar("desvíos de servidor anulados: el servidor rápido falló");
+  }
+
+  /** Baja un trozo entero con tope de tiempo y dice cuánto tardó. */
+  function medirTrozo(u, limite) {
+    var t0 = Date.now();
+    var ctl = typeof AbortController === "function" ? new AbortController() : null;
+    var reloj = ctl
+      ? setTimeout(function () {
+          ctl.abort();
+        }, limite)
+      : 0;
+    return fetch(u, ctl ? { signal: ctl.signal } : undefined)
+      .then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.arrayBuffer();
+      })
+      .then(
+        function (b) {
+          clearTimeout(reloj);
+          return { ok: true, bytes: b.byteLength, ms: Math.max(Date.now() - t0, 1), b0: new Uint8Array(b)[0] };
+        },
+        function () {
+          clearTimeout(reloj);
+          return { ok: false, bytes: 0, ms: Date.now() - t0, b0: -1 };
+        }
+      );
+  }
+
+  function sondear(L) {
+    var primero = {};
+    var hosts = [];
+    L.segs.forEach(function (sg, i) {
+      var h = hostDe(sg.u);
+      if (!h || primero[h] !== undefined) return;
+      primero[h] = i;
+      hosts.push(h);
+    });
+    var fams = {};
+    hosts.forEach(function (h) {
+      var f = familia(h);
+      if (f) (fams[f] = fams[f] || []).push(h);
+    });
+    var lista = [];
+    Object.keys(fams).forEach(function (f) {
+      if (fams[f].length > lista.length) lista = fams[f];
+    });
+    lista = lista.slice(0, 8);
+    if (lista.length < 2) {
+      L.listo = true;
+      return;
+    }
+    Promise.all(
+      lista.map(function (h) {
+        return medirTrozo(L.segs[primero[h]].u, 8000);
+      })
+    )
+      .then(function (res) {
+        var vel = {};
+        var mejor = 0;
+        res.forEach(function (r, k) {
+          // Segundos de video bajados por segundo real: no depende del tamaño del trozo (los pequeños son todo latencia).
+          vel[lista[k]] = r.ok ? L.segs[primero[lista[k]]].d / r.ms : 0;
+          if (vel[lista[k]] > mejor) mejor = vel[lista[k]];
+        });
+        if (!mejor) return;
+        var rapidos = lista.filter(function (h) {
+          return vel[h] >= mejor * 0.6;
+        });
+        var lentos = lista.filter(function (h) {
+          return vel[h] < mejor * 0.35;
+        });
+        var detalle = lista
+          .map(function (h, k) {
+            return h.split(".")[0] + " " + (res[k].ok ? Math.round(res[k].ms / 100) / 10 + " s" : "sin respuesta");
+          })
+          .join(", ");
+        if (!lentos.length) {
+          avisar("servidores del video parejos (" + detalle + ")");
+          return;
+        }
+        var nuevos = {};
+        var rr = 0;
+        return Promise.all(
+          lentos.map(function (h) {
+            var alt = rapidos[rr++ % rapidos.length];
+            var lenta = res[lista.indexOf(h)];
+            var uAlt = L.segs[primero[h]].u.replace("//" + h + "/", "//" + alt + "/");
+            return medirTrozo(uAlt, 8000).then(function (r) {
+              var igual = lenta.ok ? r.bytes === lenta.bytes : r.b0 === 0x47;
+              if (r.ok && r.bytes > 10000 && igual) nuevos[h] = alt;
+            });
+          })
+        ).then(function () {
+          var ks = Object.keys(nuevos);
+          if (!ks.length) {
+            avisar("servidores lentos sin alternativa (" + detalle + ")");
+            return;
+          }
+          desvios = nuevos;
+          avisarFondo({ desvios: nuevos });
+          avisar(
+            "servidores lentos desviados: " +
+              ks
+                .map(function (h) {
+                  return h.split(".")[0] + "→" + nuevos[h].split(".")[0];
+                })
+                .join(", ") +
+              " (" + detalle + ")"
+          );
+        });
+      })
+      .catch(function () {})
+      .then(function () {
+        L.listo = true;
+        paso(L);
+      });
+  }
+
   function posicion() {
     var v = document.querySelector("video");
     return v && isFinite(v.currentTime) ? v.currentTime : 0;
@@ -87,7 +246,8 @@
     L.pedidos[i] = true;
     L.enVuelo++;
     var t0 = Date.now();
-    fetch(L.segs[i].u)
+    var url = mapear(L.segs[i].u);
+    fetch(url)
       .then(function (r) {
         if (!r.ok) throw new Error("http " + r.status);
         return r.arrayBuffer();
@@ -102,6 +262,7 @@
         }
       })
       .catch(function () {
+        if (url !== L.segs[i].u) quitarDesvios();
         marcarMalo("falla al bajar un trozo");
         L.fallos[i] = (L.fallos[i] || 0) + 1;
         if (L.fallos[i] >= MAX_FALLOS) L.hechos[i] = true;
@@ -115,7 +276,7 @@
 
   function paso(L) {
     var v = document.querySelector("video");
-    if (!v) return;
+    if (!v || !L.listo) return;
     if (v.ended) {
       clearInterval(L.reloj);
       return;
@@ -137,7 +298,7 @@
   }
 
   function iniciar(url, segs) {
-    var L = { segs: segs, hechos: {}, pedidos: {}, fallos: {}, enVuelo: 0, n: 0, bajados: 0, reloj: 0 };
+    var L = { segs: segs, hechos: {}, pedidos: {}, fallos: {}, enVuelo: 0, n: 0, bajados: 0, reloj: 0, listo: false };
     listas[url] = L;
     hls = true;
     LA = L;
@@ -151,7 +312,7 @@
     L.reloj = setInterval(function () {
       paso(L);
     }, 1500);
-    paso(L);
+    sondear(L);
   }
 
   function ver(e) {

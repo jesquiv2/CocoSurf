@@ -1,5 +1,10 @@
 # Cambios
 
+## 1.9.2 — 2026-11-02
+- Causa real de las trabas de video medida contra el servidor: de los 6 servidores que reparten los trozos (cdn1…cdn6.ducvomes.com), cdn4 y cdn6 tardan 3–80 s por trozo y los otros ~1,3 s; como el 32 % de los trozos cae en esos dos, el video se congelaba a cada rato. El mismo archivo existe en los servidores rápidos.
+- Al empezar un video HLS se prueba un trozo de cada servidor de la familia; los lentos (menos de 0,35 de la velocidad del mejor) se redirigen a uno rápido, previa verificación de que el trozo llega igual. Si el servidor rápido falla se anula el desvío. La Bitácora anota «servidores lentos desviados: cdn4→cdn2, …» con lo que tardó cada uno.
+- La precarga espera a ese sondeo (unos segundos) para no gastar conexiones en servidores lentos.
+
 ## 1.9.1 — 2026-11-02
 - Con un servidor de video lento (según la Bitácora de la TV) la pausa para juntar colchón se repetía cada 90 s y casi no dejaba reproducir. Ahora, si tras 15 s pausado el colchón no crece, se reanuda y no se vuelve a pausar durante 5 minutos; la espera máxima baja a 45 s (60 s con servidor con problemas).
 
