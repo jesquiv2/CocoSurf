@@ -11,7 +11,7 @@
   if (window.__antenaPrecarga) return;
   window.__antenaPrecarga = true;
 
-  var ADELANTE = 600; // segundos de video que se mantienen bajados por delante de la reproducción
+  var ADELANTE = 12; // trozos (~1 min) que se mantienen bajados por delante del que se está viendo
   var MARGEN = 12; // lo inmediato lo trae el propio reproductor
   var PARALELO = 2; // descargas simultáneas
   var MAX_FALLOS = 3;
@@ -69,8 +69,8 @@
         L.hechos[i] = true;
         L.bajados += b.byteLength;
         L.n++;
-        if (L.n % 25 === 0) {
-          avisar(L.n + "/" + L.segs.length + " trozos en caché (" + Math.round(L.bajados / 1048576) + " MB)");
+        if (L.n % 20 === 0) {
+          avisar(L.n + "/" + L.segs.length + " trozos bajados en total (" + Math.round(L.bajados / 1048576) + " MB)");
         }
       })
       .catch(function () {
@@ -80,33 +80,34 @@
       })
       .then(function () {
         L.enVuelo--;
+        paso(L);
       });
   }
 
   function paso(L) {
-    if (!document.querySelector("video")) return 0;
-    var pos = posicion();
-    var desde = pos + MARGEN;
-    var hasta = pos + ADELANTE;
-    var pendientes = 0;
-    for (var i = 0; i < L.segs.length; i++) {
-      var s = L.segs[i];
-      if (L.hechos[i] || s.ini + s.d < desde) continue;
-      if (s.ini > hasta) break;
-      pendientes++;
-      if (!L.pedidos[i] && L.enVuelo < PARALELO) lanzar(L, i);
-    }
-    if (L.n >= L.segs.length) {
+    var v = document.querySelector("video");
+    if (!v) return;
+    if (v.ended) {
       clearInterval(L.reloj);
-      avisar("video completo en caché: " + L.segs.length + " trozos, " + Math.round(L.bajados / 1048576) + " MB");
+      return;
     }
-    return pendientes;
+    var pos = posicion();
+    // Trozo que se está viendo; se baja una ventana corta por delante y se avanza con la reproducción.
+    var actual = 0;
+    while (actual < L.segs.length - 1 && L.segs[actual].ini + L.segs[actual].d <= pos) actual++;
+    var fin = Math.min(L.segs.length - 1, actual + ADELANTE);
+    for (var i = actual; i <= fin; i++) {
+      var s = L.segs[i];
+      if (L.hechos[i] || L.pedidos[i] || s.ini + s.d < pos + MARGEN) continue;
+      if (L.enVuelo >= PARALELO) break;
+      lanzar(L, i);
+    }
   }
 
   function iniciar(url, segs) {
     var L = { segs: segs, hechos: {}, pedidos: {}, fallos: {}, enVuelo: 0, n: 0, bajados: 0, reloj: 0 };
     listas[url] = L;
-    avisar("lista de " + segs.length + " trozos en " + location.hostname + ": precargando hasta " + ADELANTE + " s por delante");
+    avisar("lista de " + segs.length + " trozos en " + location.hostname + ": precargando " + ADELANTE + " trozos por delante");
     L.reloj = setInterval(function () {
       paso(L);
     }, 1500);
