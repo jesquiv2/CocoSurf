@@ -431,6 +431,24 @@ class WebTab(
         session.goBack()
     }
 
+    /**
+     * Buscar texto en la página (como Ctrl+F). Llamarlo otra vez con el mismo texto salta a la
+     * siguiente coincidencia (o a la anterior con [atras]). Devuelve (actual, total).
+     */
+    fun buscarTexto(texto: String, atras: Boolean, alResultado: (Int, Int) -> Unit) {
+        runCatching {
+            val flags = if (atras) GeckoSession.FINDER_FIND_BACKWARDS else 0
+            session.finder.find(texto, flags).accept(
+                { r -> alResultado(r?.current ?: 0, r?.total ?: 0) },
+                { _ -> alResultado(0, 0) },
+            )
+        }.onFailure { alResultado(0, 0) }
+    }
+
+    fun limpiarBusqueda() {
+        runCatching { session.finder.clear() }
+    }
+
     fun reload() {
         session.reload()
     }

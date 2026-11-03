@@ -1,5 +1,12 @@
 # Cambios
 
+## 1.10.0 — 2026-11-03
+- «Acerca de» rediseñado: el icono, más pequeño, va a la izquierda y junto a él la versión, el motor y el dispositivo. Un botón «Otros» despliega (y vuelve a plegar) Android, arquitectura y memoria. Se quita la línea del motor bajo los créditos; quedan los de JEM Desarrollos y «Invítame un café».
+- Doble clic sobre un botón de la interfaz (p. ej. «Exportar» en Bitácora o Diagnóstico): el segundo clic ya no cae en lo que aparece debajo —la barra de direcciones abría el teclado y apagaba el cursor—. El cursor ignora un clic repetido en el mismo punto dentro de 0,45 s sobre la interfaz propia. Además, soltar OK tras una pulsación larga siempre levanta el toque del cursor.
+- Mantener OK sobre un favorito, una entrada del historial o una descarga abre un modal con lo que se puede hacer: abrir, mover a una carpeta, copiar la dirección, compartir el enlace, enviar el archivo a otra app (LocalSend, Bluetooth…) y eliminar. Borrar siempre pide confirmación y el foco nace en «Cancelar». Lo mismo en los paneles rápidos, donde se quita la «X» de cada fila. Mantener OK sobre una carpeta de favoritos ofrece eliminarla.
+- Respaldo: Configuración → Respaldo exporta a un solo .json los favoritos y carpetas, el historial, el registro de descargas, los motores, los ajustes y (opcional) las contraseñas, y lo ofrece enviar a otra app. «Importar respaldo» lista los de la carpeta de Descargas o abre el selector del sistema, y suma el contenido a lo que ya hay.
+- La búsqueda es ahora un modal pequeño bajo la barra, con la página a la vista: «En la página» (busca el texto, resalta y salta entre coincidencias), «Pestañas» (abiertas y cerradas hace poco) e «Historial».
+
 ## 1.9.2 — 2026-11-02
 - Causa real de las trabas de video medida contra el servidor: de los 6 servidores que reparten los trozos (cdn1…cdn6.ducvomes.com), cdn4 y cdn6 tardan 3–80 s por trozo y los otros ~1,3 s; como el 32 % de los trozos cae en esos dos, el video se congelaba a cada rato. El mismo archivo existe en los servidores rápidos.
 - Al empezar un video HLS se prueba un trozo de cada servidor de la familia; los lentos (menos de 0,35 de la velocidad del mejor) se redirigen a uno rápido, previa verificación de que el trozo llega igual. Si el servidor rápido falla se anula el desvío. La Bitácora anota «servidores lentos desviados: cdn4→cdn2, …» con lo que tardó cada uno.

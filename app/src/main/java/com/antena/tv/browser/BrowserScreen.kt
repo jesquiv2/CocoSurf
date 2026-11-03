@@ -1507,6 +1507,66 @@ fun BrowserScreen() {
         }
     }
 
+    // Respaldo: exportar a un .json (y enviarlo a otra app) o importar uno que ya está en Descargas
+    // —o elegido con el selector del sistema, si el aparato lo trae—.
+    fun importarRespaldoTexto(texto: String) {
+        scope.launch(Dispatchers.IO) {
+            val msg = runCatching { Respaldo.importar(db, texto) }
+                .map { "Respaldo importado: ${it.texto()}. Reinicia la app para aplicar los ajustes." }
+                .getOrElse { "No se pudo importar: ${it.message ?: "archivo no válido"}" }
+            refreshData()
+            withContext(Dispatchers.Main) { toast(msg) }
+        }
+    }
+
+    val selectorRespaldo = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch(Dispatchers.IO) {
+                val texto = runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
+                withContext(Dispatchers.Main) {
+                    if (texto == null) toast("No se pudo leer el archivo") else importarRespaldoTexto(texto)
+                }
+            }
+        }
+    }
+
+    fun exportarRespaldo(conClaves: Boolean) {
+        scope.launch(Dispatchers.IO) {
+            val archivo = runCatching { Respaldo.exportar(context, db, version ?: "?", conClaves) }.getOrNull()
+            refreshData()
+            withContext(Dispatchers.Main) {
+                if (archivo == null) {
+                    toast("No se pudo crear el respaldo")
+                } else {
+                    toast("Respaldo guardado en Descargas: ${archivo.name}")
+                    compartirArchivo(context, archivo)
+                }
+            }
+        }
+    }
+
+    fun elegirRespaldo() {
+        val fmt = java.text.SimpleDateFormat("dd MMM yyyy · HH:mm", java.util.Locale.getDefault())
+        val archivos = Respaldo.archivos(context).take(6)
+        val items = archivos.map { f ->
+            AccionItem(
+                fmt.format(java.util.Date(f.lastModified())), ToolIcon.Doc,
+                confirmar = "¿Importar este respaldo? Se suma a lo que ya tienes.",
+                alElegir = { importarRespaldoTexto(f.readText()) },
+            )
+        } + AccionItem("Elegir otro archivo…", ToolIcon.Folder) {
+            runCatching { selectorRespaldo.launch(arrayOf("application/json", "*/*")) }
+                .onFailure { toast("Este aparato no tiene selector de archivos: copia el respaldo a Archivos → Descargas") }
+        }
+        Acciones.mostrar(
+            "Importar respaldo",
+            if (archivos.isEmpty()) "No hay respaldos en la carpeta de Descargas" else "Respaldos en Descargas",
+            items,
+        )
+    }
+
     /** Guarda la bitácora completa en un .txt (Descargas) y ofrece compartirlo. */
     fun exportarBitacora() {
         runCatching {
@@ -1589,6 +1649,22 @@ fun BrowserScreen() {
             com.antena.tv.archivos.Tipo.APK -> com.antena.tv.archivos.Almacenamiento.instalarApk(context, f)?.let { toast(it) }
             else -> openDownloadedFile(context, d)
         }
+    }
+
+    /** «Enviar a…»: pasa el archivo descargado a otra app (LocalSend, Bluetooth, reproductor…). */
+    fun enviarDescarga(d: DownloadEntry) {
+        val f = if (d.dmId < 0) java.io.File(d.url.removePrefix("file://"))
+        else java.io.File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS), d.title)
+        if (!f.exists()) { toast("El archivo ya no está en el dispositivo"); return }
+        if (!compartirArchivo(context, f)) toast("No hay una app para enviar el archivo")
+    }
+
+    fun moverFavorito(fav: Favorite, carpeta: String?) {
+        scope.launch(Dispatchers.IO) {
+            db.favoriteDao().upsert(fav.copy(folderId = carpeta))
+            refreshData()
+        }
+        toast(if (carpeta == null) "Favorito sin carpeta" else "Favorito movido a «${folders.firstOrNull { it.id == carpeta }?.name ?: "carpeta"}»")
     }
 
     fun irACarpetaDescargas() {
@@ -1703,6 +1779,8 @@ fun BrowserScreen() {
                     }
                 },
                 onAnadir = { overlay = Overlay.Star(null) },
+                carpetas = folders,
+                onMover = ::moverFavorito,
                 onPagina = {
                     refreshData()
                     overlay = Overlay.Favorites
@@ -1723,6 +1801,7 @@ fun BrowserScreen() {
                     }
                 },
                 onCarpeta = { irACarpetaDescargas() },
+                onEnviar = ::enviarDescarga,
                 onPagina = {
                     overlay = null
                     abrirInterna(INTERNA_DESCARGAS)
@@ -2375,6 +2454,7 @@ fun BrowserScreen() {
                                 onOpenFolder = { irACarpetaDescargas() },
                                 onBack = { closeTab(activeId) },
                                 backLabel = "✕ Cerrar",
+                                onEnviar = ::enviarDescarga,
                             )
                             INTERNA_ACERCA -> AcercaPage(
                                 version = version ?: "—",
@@ -2423,6 +2503,8 @@ fun BrowserScreen() {
                                 onRestaurarPestanas = ::elegirRestaurar,
                                 precalentar = precalentarMotor,
                                 onPrecalentar = ::elegirPrecalentar,
+                                onExportarRespaldo = ::exportarRespaldo,
+                                onImportarRespaldo = ::elegirRespaldo,
                             )
                             else -> DashboardPage(
                                 favorites = favorites,
@@ -2808,14 +2890,30 @@ fun BrowserScreen() {
                 }
             }
             is Overlay.Buscar -> {
-                PageScaffold(title = "", onClose = ::closeOverlay) {
-                    BuscarTabsPage(
+                // Sin oscurecer: la página sigue a la vista para ver las coincidencias resaltadas.
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) { detectTapGestures { closeOverlay() } },
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = topPanel, end = 16.dp)
+                        .pointerInput(Unit) { detectTapGestures { } },
+                ) {
+                    val web = webTabs[activeId]
+                    BuscadorModal(
                         abiertas = tabs,
                         activaId = activeId,
                         cerradas = cerradas,
-                        onAbrir = { irATab(it) },
+                        historial = history,
+                        hayPagina = web != null && activeTab.url.startsWith("http"),
+                        buscarEnPagina = { t, atras, cb -> web?.buscarTexto(t, atras, cb) ?: cb(0, 0) },
+                        limpiarBusqueda = { web?.limpiarBusqueda() },
+                        onAbrirTab = { irATab(it) },
                         onRestaurar = { restaurarTab(it) },
-                        onBack = ::closeOverlay,
+                        onAbrirUrl = { u -> closeOverlay(); openUrl(u) },
                     )
                 }
             }
@@ -2849,6 +2947,7 @@ fun BrowserScreen() {
                             if (favFolderSel == f.id) favFolderSel = null
                         },
                         onBack = ::closeOverlay,
+                        onMover = ::moverFavorito,
                     )
                 }
             }
@@ -3083,6 +3182,9 @@ fun BrowserScreen() {
                 )
             }
         }
+
+        // Opciones de una fila (favorito, historial, descarga): mantener OK en la lista.
+        Box(Modifier.fillMaxSize().zIndex(35f)) { AccionesHost() }
 
         // Contraseñas: ofrecer guardar o elegir (tarjeta bajo la barra, arriba al centro).
         claveGuardar?.let { ClaveGuardarCard(it, Modifier.align(Alignment.TopCenter).padding(top = 76.dp).zIndex(25f)) }

@@ -1374,7 +1374,6 @@ fun ToolbarSettingsPage(
 private val ACERCA_CREDITOS = listOf(
     "Hecho por JEM Desarrollos.",
     "Hecho con cariño para navegar desde el sofá.",
-    "Motor: Firefox (GeckoView) · Complementos: tienda oficial de Mozilla.",
 )
 
 /**
@@ -1384,22 +1383,29 @@ private val ACERCA_CREDITOS = listOf(
  */
 private const val ACERCA_CAFE_URL = "https://ko-fi.com/jemdesarrollos"
 
+/** Una fila «dato · valor» de la tarjeta de «Acerca de». */
+@Composable
+private fun FilaDato(k: String, v: String, divisor: Boolean) {
+    if (divisor) Box(Modifier.fillMaxWidth().height(1.dp).background(Azul.copy(alpha = 0.2f)))
+    Row(Modifier.fillMaxWidth().padding(vertical = 9.dp)) {
+        Text(k, style = AntenaType.body, color = FosforoTenue, modifier = Modifier.width(150.dp))
+        Text(v, style = AntenaType.body, color = Fosforo, modifier = Modifier.weight(1f))
+    }
+}
+
 /** «Acerca de» como pestaña interna: identidad de la app, versión y datos del equipo. */
 @Composable
 fun AcercaPage(version: String, onClose: () -> Unit, onAbrir: (String) -> Unit = {}) {
     val primero = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { primero.requestFocus() } }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val motor = runCatching { org.mozilla.geckoview.BuildConfig.MOZ_APP_VERSION }.getOrDefault("—")
-    val filas = listOf(
+    val principales = listOf(
         "Versión" to version,
         "Motor" to "Firefox $motor (GeckoView)",
-        "Android" to "${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})",
         "Dispositivo" to "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
-        "Arquitectura" to (android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "—"),
-        "Memoria" to com.antena.tv.gecko.Memoria.leer(androidx.compose.ui.platform.LocalContext.current).let {
-            "${it.libreMb} MB libres de ${it.totalMb} MB" + if (it.pocaRam) " · modo ahorro" else ""
-        },
     )
+    var otros by remember { mutableStateOf(false) }
     Column(
         Modifier
             .fillMaxSize()
@@ -1414,31 +1420,48 @@ fun AcercaPage(version: String, onClose: () -> Unit, onAbrir: (String) -> Unit =
             }
         }
         Spacer(Modifier.height(18.dp))
-        Image(
-            painter = androidx.compose.ui.res.painterResource(com.antena.tv.R.drawable.ic_launcher_fg),
-            contentDescription = null,
-            modifier = Modifier.size(150.dp),
-        )
-        Text("Coco Surf", style = AntenaType.display, color = Fosforo)
-        Text("Navegador pensado para el control remoto", style = AntenaType.body, color = FosforoTenue)
-        Spacer(Modifier.height(22.dp))
-        Column(
-            Modifier
-                .widthIn(max = 620.dp)
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Casco)
-                .border(1.dp, Azul.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
-                .padding(horizontal = 22.dp, vertical = 14.dp),
+        Row(
+            Modifier.widthIn(max = 720.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            filas.forEachIndexed { i, (k, v) ->
-                if (i > 0) {
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(Azul.copy(alpha = 0.2f)))
+            Image(
+                painter = androidx.compose.ui.res.painterResource(com.antena.tv.R.drawable.ic_launcher_fg),
+                contentDescription = null,
+                modifier = Modifier.size(96.dp),
+            )
+            Column(Modifier.weight(1f)) {
+                Text("Coco Surf", style = AntenaType.display, color = Fosforo)
+                Text("Navegador pensado para el control remoto", style = AntenaType.body, color = FosforoTenue)
+                Spacer(Modifier.height(12.dp))
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Casco)
+                        .border(1.dp, Azul.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 22.dp, vertical = 6.dp),
+                ) {
+                    principales.forEachIndexed { i, (k, v) -> FilaDato(k, v, divisor = i > 0) }
+                    androidx.compose.animation.AnimatedVisibility(visible = otros) {
+                        val mem = com.antena.tv.gecko.Memoria.leer(ctx)
+                        Column {
+                            FilaDato("Android", "${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})", true)
+                            FilaDato("Arquitectura", android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "—", true)
+                            FilaDato(
+                                "Memoria",
+                                "${mem.libreMb} MB libres de ${mem.totalMb} MB" + if (mem.pocaRam) " · modo ahorro" else "",
+                                true,
+                            )
+                        }
+                    }
                 }
-                Row(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                    Text(k, style = AntenaType.body, color = FosforoTenue, modifier = Modifier.width(170.dp))
-                    Text(v, style = AntenaType.body, color = Fosforo, modifier = Modifier.weight(1f))
-                }
+                Spacer(Modifier.height(10.dp))
+                RemoteChip(
+                    label = if (otros) "Otros ▴" else "Otros ▾",
+                    small = true,
+                    onClick = { otros = !otros },
+                )
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -1592,8 +1615,11 @@ fun ConfiguracionPage(
     onRestaurarPestanas: (Boolean) -> Unit = {},
     precalentar: Boolean = true,
     onPrecalentar: (Boolean) -> Unit = {},
+    onExportarRespaldo: (Boolean) -> Unit = {},
+    onImportarRespaldo: () -> Unit = {},
 ) {
     var pestana by remember { mutableStateOf(0) }
+    var respaldoConClaves by remember { mutableStateOf(true) }
     Column(
         Modifier
             .fillMaxSize()
@@ -1609,7 +1635,7 @@ fun ConfiguracionPage(
             }
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("General", "Control remoto", "Monitor").forEachIndexed { i, t ->
+                listOf("General", "Control remoto", "Monitor", "Respaldo").forEachIndexed { i, t ->
                     RemoteChip(label = t, small = true, accent = i == pestana, onClick = { pestana = i })
                 }
             }
@@ -1772,6 +1798,51 @@ fun ConfiguracionPage(
                     }
                 }
 
+                3 -> {
+                    SeccionAjustes("Copia de seguridad") {
+                        Text(
+                            "Guarda en un archivo todo lo que has ido armando en Coco Surf para tenerlo a salvo " +
+                                "o llevarlo a otro aparato. Al exportar puedes enviarlo a otra app (LocalSend, " +
+                                "Bluetooth, correo…).",
+                            style = AntenaType.meta,
+                            color = FosforoTenue,
+                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+                        )
+                        FilaAjuste(
+                            titulo = "Incluir contraseñas",
+                            descripcion = "En el archivo quedan en texto legible: guárdalo en un lugar seguro.",
+                            onClick = { respaldoConClaves = !respaldoConClaves },
+                        ) { Interruptor(respaldoConClaves, { respaldoConClaves = it }) }
+                        Row(
+                            Modifier.padding(start = 10.dp, top = 8.dp, bottom = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            RemoteChip(
+                                label = "Exportar respaldo",
+                                icon = ToolIcon.Share,
+                                accent = true,
+                                onClick = { onExportarRespaldo(respaldoConClaves) },
+                            )
+                            RemoteChip(label = "Importar respaldo", icon = ToolIcon.Download, onClick = onImportarRespaldo)
+                        }
+                    }
+                    SeccionAjustes("Qué incluye") {
+                        listOf(
+                            "Favoritos y sus carpetas",
+                            "Historial y registro de descargas (los archivos no)",
+                            "Motores de búsqueda y todos los ajustes",
+                            "Contraseñas guardadas (si lo dejas activado)",
+                        ).forEach {
+                            Text("• $it", style = AntenaType.body, color = Fosforo, modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp))
+                        }
+                        Text(
+                            "Al importar, lo del archivo se suma a lo que ya tienes. Los ajustes se aplican al reiniciar la app.",
+                            style = AntenaType.meta,
+                            color = FosforoTenue,
+                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 6.dp, bottom = 10.dp),
+                        )
+                    }
+                }
                 else -> {
                     SeccionAjustes("Monitor de recursos") {
                         FilaAjuste(
@@ -2180,8 +2251,38 @@ fun FavoritesPage(
     onNewFolder: () -> Unit,
     onDeleteFolder: (Folder) -> Unit,
     onBack: () -> Unit,
+    onMover: (Favorite, String?) -> Unit = { _, _ -> },
 ) {
     val list = if (selectedFolder == null) favorites else favorites.filter { it.folderId == selectedFolder }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    fun opciones(fav: Favorite) {
+        val mover = if (folders.isEmpty()) emptyList() else listOf(
+            AccionItem(
+                "Mover a carpeta", ToolIcon.Folder,
+                sub = buildList {
+                    add(AccionItem(if (fav.folderId == null) "Sin carpeta (actual)" else "Sin carpeta", ToolIcon.Home) { onMover(fav, null) })
+                    folders.forEach { f ->
+                        add(AccionItem(if (fav.folderId == f.id) "${f.name} (actual)" else f.name, ToolIcon.Folder2) { onMover(fav, f.id) })
+                    }
+                },
+            ),
+        )
+        Acciones.mostrar(
+            fav.name, fav.url,
+            accionesDeSitio(
+                ctx, fav.url,
+                onAbrir = { onOpen(fav.url) },
+                onEliminar = { onDelete(fav) },
+                textoEliminar = "Eliminar favorito",
+                preguntaEliminar = "¿Eliminar este favorito?",
+                antes = mover,
+            ),
+        )
+    }
+    fun opcionesCarpeta(f: Folder) = Acciones.mostrar(
+        "Carpeta «${f.name}»", "Los favoritos que contiene se conservan",
+        listOf(AccionItem("Eliminar carpeta", ToolIcon.Trash, peligro = true, confirmar = "¿Eliminar esta carpeta?", alElegir = { onDeleteFolder(f) })),
+    )
     Column(Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 36.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Favoritos", style = AntenaType.section, color = Fosforo, modifier = Modifier.weight(1f))
@@ -2189,7 +2290,7 @@ fun FavoritesPage(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "OK: abrir · mantener OK: eliminar",
+            "OK: abrir · mantener OK: opciones (mover, copiar, compartir, eliminar)",
             style = AntenaType.meta,
             color = FosforoTenue,
         )
@@ -2204,7 +2305,7 @@ fun FavoritesPage(
                     small = true,
                     accent = boxed,
                     onClick = { onSelectFolder(f.id) },
-                    onLongClick = { onDeleteFolder(f) },
+                    onLongClick = { opcionesCarpeta(f) },
                 )
             }
             RemoteChip(label = "+ Carpeta", small = true, onClick = onNewFolder)
@@ -2220,7 +2321,7 @@ fun FavoritesPage(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(list, key = { it.id }) { fav ->
-                    FavoriteRow(fav, onOpen = { onOpen(fav.url) }, onDelete = { onDelete(fav) })
+                    FavoriteRow(fav, onOpen = { onOpen(fav.url) }, onOpciones = { opciones(fav) })
                 }
             }
         }
@@ -2228,9 +2329,9 @@ fun FavoritesPage(
 }
 
 @Composable
-private fun FavoriteRow(fav: Favorite, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun FavoriteRow(fav: Favorite, onOpen: () -> Unit, onOpciones: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val center = rememberCenterHandler(onOpen, onDelete)
+    val center = rememberCenterHandler(onOpen, onOpciones)
     val shape = RoundedCornerShape(10.dp)
     Row(
         Modifier
@@ -2246,7 +2347,7 @@ private fun FavoriteRow(fav: Favorite, onOpen: () -> Unit, onDelete: () -> Unit)
             )
             .onKeyEvent(center)
             .pointerInput(fav.id) {
-                detectTapGestures(onTap = { onOpen() }, onLongPress = { onDelete() })
+                detectTapGestures(onTap = { onOpen() }, onLongPress = { onOpciones() })
             }
             .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2294,6 +2395,7 @@ fun HistoryPage(
     /** Paso 2 · como pestaña el chip de salida cierra la pestaña («✕ Cerrar»). */
     backLabel: String = "← Volver",
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val now = System.currentTimeMillis()
     val visible = entries.filter {
         filter.windowMs == Long.MAX_VALUE || now - it.visitedAt <= filter.windowMs
@@ -2309,7 +2411,7 @@ fun HistoryPage(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "OK: abrir · mantener OK: quitar del historial",
+            "OK: abrir · mantener OK: opciones (copiar, compartir, quitar)",
             style = AntenaType.meta,
             color = FosforoTenue,
         )
@@ -2336,7 +2438,22 @@ fun HistoryPage(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(visible, key = { it.id }) { e ->
-                    HistoryRow(e, dayFmt, onOpen = { onOpen(e.url) }, onDelete = { onDelete(e) })
+                    HistoryRow(
+                        e, dayFmt,
+                        onOpen = { onOpen(e.url) },
+                        onOpciones = {
+                            Acciones.mostrar(
+                                e.title.ifBlank { e.url }, e.url,
+                                accionesDeSitio(
+                                    ctx, e.url,
+                                    onAbrir = { onOpen(e.url) },
+                                    onEliminar = { onDelete(e) },
+                                    textoEliminar = "Quitar del historial",
+                                    preguntaEliminar = "¿Quitar esta página del historial?",
+                                ),
+                            )
+                        },
+                    )
                 }
             }
         }
@@ -2348,10 +2465,10 @@ private fun HistoryRow(
     e: HistoryEntry,
     fmt: SimpleDateFormat,
     onOpen: () -> Unit,
-    onDelete: () -> Unit,
+    onOpciones: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val center = rememberCenterHandler(onOpen, onDelete)
+    val center = rememberCenterHandler(onOpen, onOpciones)
     val shape = RoundedCornerShape(10.dp)
     Row(
         Modifier
@@ -2367,7 +2484,7 @@ private fun HistoryRow(
             )
             .onKeyEvent(center)
             .pointerInput(e.id) {
-                detectTapGestures(onTap = { onOpen() }, onLongPress = { onDelete() })
+                detectTapGestures(onTap = { onOpen() }, onLongPress = { onOpciones() })
             }
             .padding(horizontal = 18.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -2403,7 +2520,9 @@ fun DownloadsPage(
     onBack: () -> Unit,
     /** Paso 2 · como pestaña el chip de salida cierra la pestaña («✕ Cerrar»). */
     backLabel: String = "← Volver",
+    onEnviar: (DownloadEntry) -> Unit = {},
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.fillMaxSize().padding(start = 48.dp, end = 48.dp, top = 36.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Descargas", style = AntenaType.section, color = Fosforo, modifier = Modifier.weight(1f))
@@ -2413,7 +2532,7 @@ fun DownloadsPage(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "OK: abrir con… · mantener OK: eliminar",
+            "OK: abrir con… · mantener OK: opciones (enviar a otra app, eliminar)",
             style = AntenaType.meta,
             color = FosforoTenue,
         )
@@ -2428,7 +2547,11 @@ fun DownloadsPage(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(entries, key = { it.id }) { d ->
-                    DownloadRow(d, onOpen = { onOpenFile(d) }, onDelete = { onDelete(d) })
+                    DownloadRow(
+                        d,
+                        onOpen = { onOpenFile(d) },
+                        onOpciones = { Acciones.mostrar(d.title, hostOf(d.url) ?: d.url, accionesDeDescarga(ctx, d, onOpenFile, onEnviar, onDelete)) },
+                    )
                 }
             }
         }
@@ -2436,9 +2559,9 @@ fun DownloadsPage(
 }
 
 @Composable
-private fun DownloadRow(d: DownloadEntry, onOpen: () -> Unit, onDelete: () -> Unit) {
+private fun DownloadRow(d: DownloadEntry, onOpen: () -> Unit, onOpciones: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    val center = rememberCenterHandler(onOpen, onDelete)
+    val center = rememberCenterHandler(onOpen, onOpciones)
     val shape = RoundedCornerShape(10.dp)
     val dateFmt = remember { SimpleDateFormat("dd MMM · HH:mm", Locale.getDefault()) }
     Row(
@@ -2455,7 +2578,7 @@ private fun DownloadRow(d: DownloadEntry, onOpen: () -> Unit, onDelete: () -> Un
             )
             .onKeyEvent(center)
             .pointerInput(d.id) {
-                detectTapGestures(onTap = { onOpen() }, onLongPress = { onDelete() })
+                detectTapGestures(onTap = { onOpen() }, onLongPress = { onOpciones() })
             }
             .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

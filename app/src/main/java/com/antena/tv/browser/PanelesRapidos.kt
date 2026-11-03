@@ -158,6 +158,8 @@ fun PanelFavoritos(
     onAnadir: () -> Unit,
     onPagina: () -> Unit,
     modifier: Modifier = Modifier,
+    carpetas: List<com.antena.tv.db.Folder> = emptyList(),
+    onMover: (com.antena.tv.db.Favorite, String?) -> Unit = { _, _ -> },
 ) {
     var busqueda by remember { mutableStateOf("") }
     val lista = favoritos.filter {
@@ -197,15 +199,40 @@ fun PanelFavoritos(
                     hora = null,
                     onAbrir = { onAbrir(f.url) },
                     onEliminar = { onEliminar(f) },
+                    textoEliminar = "Eliminar favorito",
+                    preguntaEliminar = "¿Eliminar este favorito?",
+                    antes = if (carpetas.isEmpty()) emptyList() else listOf(
+                        AccionItem(
+                            "Mover a carpeta", ToolIcon.Folder,
+                            sub = buildList {
+                                add(AccionItem(if (f.folderId == null) "Sin carpeta (actual)" else "Sin carpeta", ToolIcon.Home) { onMover(f, null) })
+                                carpetas.forEach { c ->
+                                    add(AccionItem(if (f.folderId == c.id) "${c.name} (actual)" else c.name, ToolIcon.Folder2) { onMover(f, c.id) })
+                                }
+                            },
+                        ),
+                    ),
                 )
             }
         }
+        PistaOpciones()
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             RemoteChip(label = "Añadir", icon = ToolIcon.NewTab, small = true, onClick = onAnadir)
             RemoteChip(label = "Todos", small = true, onClick = onPagina)
         }
     }
+}
+
+/** Recordatorio de que mantener OK abre las opciones de la fila. */
+@Composable
+fun PistaOpciones() {
+    Text(
+        "Mantén OK sobre un elemento para ver sus opciones.",
+        style = AntenaType.meta.copy(fontSize = 12.sp),
+        color = FosforoTenue,
+        modifier = Modifier.padding(start = 6.dp, top = 6.dp),
+    )
 }
 
 /** Marco común: cabecera (título que abre la página completa, fijar, menú, cerrar) y cuerpo. */
@@ -350,6 +377,7 @@ fun PanelDescargas(
     onPagina: () -> Unit,
     onLimpiar: () -> Unit,
     modifier: Modifier = Modifier,
+    onEnviar: (DownloadEntry) -> Unit = {},
 ) {
     val context = LocalContext.current
     var busqueda by remember { mutableStateOf("") }
@@ -397,9 +425,14 @@ fun PanelDescargas(
                 )
             }
             visibles.forEach { d ->
-                FilaDescarga(d, estados[d.dmId], onAbrir = { onAbrirArchivo(d) }, onEliminar = { onEliminar(d) })
+                FilaDescarga(
+                    d, estados[d.dmId],
+                    onAbrir = { onAbrirArchivo(d) },
+                    onOpciones = { Acciones.mostrar(d.title, hostOf(d.url) ?: d.url, accionesDeDescarga(context, d, onAbrirArchivo, onEnviar, onEliminar)) },
+                )
             }
         }
+        PistaOpciones()
         // «Todas las descargas» y «Abrir carpeta» están en el menú ⋯.
         if (!verTodas && busqueda.isBlank() && filtradas.size > 4) {
             Spacer(Modifier.height(8.dp))
@@ -413,12 +446,12 @@ private fun FilaDescarga(
     d: DownloadEntry,
     st: EstadoDescarga?,
     onAbrir: () -> Unit,
-    onEliminar: () -> Unit,
+    onOpciones: () -> Unit,
 ) {
     var enfocado by remember { mutableStateOf(false) }
     val fuente = remember { MutableInteractionSource() }
     val hover by fuente.collectIsHoveredAsState()
-    val centro = rememberCenterHandler(onAbrir, onEliminar)
+    val centro = rememberCenterHandler(onAbrir, onOpciones)
     val forma = RoundedCornerShape(12.dp)
     val fecha = remember { SimpleDateFormat("dd MMM · HH:mm", Locale.getDefault()) }
     val enCurso = st != null && st.estado != DownloadManager.STATUS_SUCCESSFUL &&
@@ -454,7 +487,7 @@ private fun FilaDescarga(
             )
             .border(if (enfocado) 2.dp else 0.dp, if (enfocado) Ambar else Color.Transparent, forma)
             .onKeyEvent(centro)
-            .pointerInput(d.id) { detectTapGestures(onTap = { onAbrir() }, onLongPress = { onEliminar() }) }
+            .pointerInput(d.id) { detectTapGestures(onTap = { onAbrir() }, onLongPress = { onOpciones() }) }
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -498,7 +531,6 @@ private fun FilaDescarga(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            RemoteChip(label = "", icon = ToolIcon.Trash, small = true, ghost = true, onClick = onEliminar)
         }
         if (enCurso) {
             Spacer(Modifier.height(8.dp))
@@ -601,6 +633,8 @@ fun PanelHistorial(
                             hora = e.visitedAt,
                             onAbrir = { onAbrir(e.url) },
                             onEliminar = { onEliminar(e) },
+                            textoEliminar = "Quitar del historial",
+                            preguntaEliminar = "¿Quitar esta página del historial?",
                         )
                     }
                 }
@@ -627,6 +661,7 @@ fun PanelHistorial(
                 }
             }
         }
+        PistaOpciones()
     }
 }
 
@@ -641,17 +676,24 @@ private fun EncabezadoDia(texto: String) {
 }
 
 @Composable
-private fun FilaSitio(
+internal fun FilaSitio(
     titulo: String,
     url: String,
     hora: Long?,
     onAbrir: () -> Unit,
     onEliminar: (() -> Unit)?,
+    textoEliminar: String = "Eliminar",
+    preguntaEliminar: String = "¿Eliminar?",
+    antes: List<AccionItem> = emptyList(),
 ) {
     var enfocado by remember { mutableStateOf(false) }
     val fuente = remember { MutableInteractionSource() }
     val hover by fuente.collectIsHoveredAsState()
-    val centro = rememberCenterHandler(onAbrir, onEliminar)
+    val ctx = LocalContext.current
+    val opciones = {
+        Acciones.mostrar(titulo, url, accionesDeSitio(ctx, url, onAbrir, onEliminar, textoEliminar, preguntaEliminar, antes))
+    }
+    val centro = rememberCenterHandler(onAbrir, opciones)
     val forma = RoundedCornerShape(10.dp)
     val horaFmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
     Row(
@@ -671,7 +713,7 @@ private fun FilaSitio(
             .border(if (enfocado) 2.dp else 0.dp, if (enfocado) Ambar else Color.Transparent, forma)
             .onKeyEvent(centro)
             .pointerInput(url, hora ?: 0L) {
-                detectTapGestures(onTap = { onAbrir() }, onLongPress = { onEliminar?.invoke() })
+                detectTapGestures(onTap = { onAbrir() }, onLongPress = { opciones() })
             }
             .padding(horizontal = 8.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -701,9 +743,6 @@ private fun FilaSitio(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-        }
-        if (onEliminar != null) {
-            RemoteChip(label = "", icon = ToolIcon.Close, small = true, ghost = true, onClick = onEliminar)
         }
     }
 }

@@ -227,6 +227,16 @@ object Puntero {
             }
         }
         if (!activo && !pulsado) return false
+        // Soltar OK tras una pulsación larga que abrió un modal: el toque sintético sigue abajo y
+        // hay que levantarlo aunque el modal ya haya pausado el cursor.
+        if (pulsado && ev.action == KeyEvent.ACTION_UP &&
+            (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER)
+        ) {
+            h.removeCallbacks(mantener)
+            toque(act.window.decorView, MotionEvent.ACTION_UP)
+            pulsado = false
+            return true
+        }
         // Con un diálogo abierto las flechas y OK mueven el foco de sus botones, no el cursor.
         if ((pausado || pausadoExtra) && (dir || k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER || k == KeyEvent.KEYCODE_NUMPAD_ENTER)) return false
 
@@ -620,8 +630,32 @@ object Puntero {
         decor.dispatchTouchEvent(e); e.recycle()
     }
 
+    // Doble clic sobre la interfaz propia: el primero ya hizo su trabajo (cerrar una pestaña,
+    // abrir un menú…) y la pantalla de debajo cambia de sitio; el segundo caería sobre lo que
+    // aparece detrás —la barra de direcciones, un campo de la página— y abriría el teclado,
+    // que apaga el cursor. Se descarta el clic repetido en el mismo punto.
+    private var clicPropioAt = 0L
+    private var clicPropioPos = Offset.Zero
+    private var ignorarUp = false
+
     private fun toque(decor: android.view.View, accion: Int) {
         val ahora = SystemClock.uptimeMillis()
+        if (accion == MotionEvent.ACTION_DOWN) {
+            val propia = !esWeb || (pos.y - origenY) < altoBarras || enPanel(decor.width.toFloat())
+            val repetido = clicPropioAt != 0L && ahora - clicPropioAt < 450 &&
+                Math.hypot((pos.x - clicPropioPos.x).toDouble(), (pos.y - clicPropioPos.y).toDouble()) < 48.0 * densidad
+            if (repetido) {
+                ignorarUp = true
+                clicPropioAt = ahora
+                return
+            }
+            clicPropioAt = if (propia) ahora else 0L
+            clicPropioPos = pos
+            ignorarUp = false
+        } else if (ignorarUp) {
+            if (accion == MotionEvent.ACTION_UP || accion == MotionEvent.ACTION_CANCEL) ignorarUp = false
+            return
+        }
         if (accion == MotionEvent.ACTION_DOWN) {
             downTime = ahora
             // El «ratón» del hover se retira antes de pulsar: un dedo y un ratón a la vez no existen.

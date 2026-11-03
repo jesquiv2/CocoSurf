@@ -90,6 +90,9 @@ interface SettingDao {
     @Query("SELECT value FROM settings WHERE key = :key")
     fun get(key: String): String?
 
+    @Query("SELECT * FROM settings")
+    fun all(): List<Setting>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun put(setting: Setting)
 }
