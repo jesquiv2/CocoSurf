@@ -887,7 +887,9 @@ fun BrowserScreen() {
     LaunchedEffect(Unit) {
         // M5 · motor Gecko desde el arranque: la primera pestaña no paga el
         // coste de crear el runtime y las extensiones se listan al abrir ☰.
-        // (el motor lo arranca MainActivity justo tras pintar la primera pantalla)
+        // OJO: el motor debe crearse antes de que la actividad pase a «resumed»; si no, GeckoRuntime
+        // se cae al añadirse como observador del ciclo de vida (se probó, 1.10.1).
+        GeckoMotor.arrancar(context)
         val (list, savedEngine, savedHome) = withContext(Dispatchers.IO) {
             AntenaDatabase.seed(db)
             val l = db.engineDao().all()

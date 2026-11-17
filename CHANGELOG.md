@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.10.2 — 2026-11-17
+- Arregla un cierre al abrir la app introducido en la 1.10.1 (el motor se creaba con la actividad ya activa y GeckoView se caía). Se vuelve al arranque anterior; la 1.10.1 no debe usarse.
+
 ## 1.10.1 — 2026-11-17
 - Buscador: ya no atrapa al usuario. Tiene un botón ✕, Atrás lo cierra siempre (aunque el teclado tenga el foco) y el cursor sigue activo para tocar fuera.
 - Arranque: el motor arranca justo después de pintar la primera pantalla, a la par de la carga de ajustes y pestañas, en vez de bloquearlas.

@@ -55,10 +55,6 @@ class MainActivity : ComponentActivity() {
                 Shell()
             }
         }
-        // El motor arranca en cuanto la interfaz ya se pintó, sin esperar a que la pantalla cargue
-        // sus ajustes y pestañas: así el arranque del motor y de los complementos corre a la par
-        // de eso en vez de ir detrás.
-        window.decorView.post { com.antena.tv.gecko.GeckoMotor.arrancar(this) }
     }
 
     override fun onTrimMemory(level: Int) {
