@@ -35,7 +35,6 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.antena.tv.cursor.Puntero
 import com.antena.tv.db.HistoryEntry
 import com.antena.tv.ui.Alerta
 import com.antena.tv.ui.Ambar
@@ -73,6 +72,7 @@ fun BuscadorModal(
     onAbrirTab: (PageTab) -> Unit,
     onRestaurar: (TabCerrada) -> Unit,
     onAbrirUrl: (String) -> Unit,
+    onCerrar: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var ambito by remember { mutableStateOf(if (hayPagina) Ambito.PAGINA else Ambito.PESTANAS) }
@@ -82,14 +82,10 @@ fun BuscadorModal(
     var buscado by remember { mutableStateOf(false) }
     val campo = remember { FocusRequester() }
 
-    // Mientras está abierto las flechas del mando mueven el foco entre campo, botones y resultados.
-    DisposableEffect(Unit) {
-        Puntero.pausadoExtra = true
-        onDispose {
-            Puntero.pausadoExtra = false
-            limpiarBusqueda()
-        }
-    }
+    // Atrás siempre cierra (aunque el teclado o el campo tengan el foco); el cursor sigue activo
+    // para tocar fuera o el botón ✕.
+    androidx.activity.compose.BackHandler(true) { onCerrar() }
+    DisposableEffect(Unit) { onDispose { limpiarBusqueda() } }
     LaunchedEffect(Unit) {
         delay(80)
         runCatching { campo.requestFocus() }
@@ -132,6 +128,8 @@ fun BuscadorModal(
                     onClick = { ambito = a },
                 )
             }
+            Spacer(Modifier.weight(1f))
+            RemoteChip(label = "", icon = ToolIcon.Close, small = true, onClick = onCerrar)
         }
         Spacer(Modifier.height(10.dp))
 

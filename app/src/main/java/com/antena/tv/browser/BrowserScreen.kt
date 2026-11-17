@@ -887,7 +887,7 @@ fun BrowserScreen() {
     LaunchedEffect(Unit) {
         // M5 · motor Gecko desde el arranque: la primera pestaña no paga el
         // coste de crear el runtime y las extensiones se listan al abrir ☰.
-        GeckoMotor.arrancar(context)
+        // (el motor lo arranca MainActivity justo tras pintar la primera pantalla)
         val (list, savedEngine, savedHome) = withContext(Dispatchers.IO) {
             AntenaDatabase.seed(db)
             val l = db.engineDao().all()
@@ -2914,6 +2914,7 @@ fun BrowserScreen() {
                         onAbrirTab = { irATab(it) },
                         onRestaurar = { restaurarTab(it) },
                         onAbrirUrl = { u -> closeOverlay(); openUrl(u) },
+                        onCerrar = ::closeOverlay,
                     )
                 }
             }
