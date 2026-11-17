@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.10.3 — 2026-11-17
+- Arranque rápido: la espera de 15–40 s hasta ver la primera página venía de uBlock Origin completo (cargaba sus listas en cada arranque y retenía las páginas hasta terminar). Medido en el emulador: con él, 21–43 s hasta el primer contenido; con uBlock Origin Lite, ~5 s. La Lite bloquea con reglas que el propio motor ya tiene compiladas.
+- uBlock Origin Lite es ahora el bloqueador por defecto. Quien tenía el completo pasa a la Lite una sola vez (el completo se quita sólo cuando la Lite ya quedó instalada). Se pierden los ajustes propios del completo; el selector de elementos y los filtros personalizados no existen en la Lite. Si prefieres el completo puedes instalarlo desde Complementos (a costa del arranque lento).
+
 ## 1.10.2 — 2026-11-17
 - Arregla un cierre al abrir la app introducido en la 1.10.1 (el motor se creaba con la actividad ya activa y GeckoView se caía). Se vuelve al arranque anterior; la 1.10.1 no debe usarse.
 

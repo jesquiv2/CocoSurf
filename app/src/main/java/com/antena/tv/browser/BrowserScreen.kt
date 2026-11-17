@@ -1348,24 +1348,37 @@ fun BrowserScreen() {
         }
     }
 
-    // Protección desde el primer arranque: uBlock Origin (de la tienda oficial de
-    // Firefox) se instala solo UNA vez si el usuario aún no tiene un bloqueador.
-    // Después manda el usuario: si lo quita, no vuelve a instalarse.
+    // Protección desde el primer arranque: uBlock Origin Lite (tienda oficial de Firefox). El
+    // uBlock Origin completo cargaba sus listas en cada arranque y retenía las páginas: la primera
+    // tardaba 20–40 s en la TV. La versión Lite bloquea con reglas ya compiladas por el motor
+    // (primera página en ~5 s). Se instala UNA vez; quien tenía el completo pasa a la Lite una
+    // sola vez (si después lo vuelve a instalar, manda el usuario).
     LaunchedEffect(Unit) {
         delay(6_000)
-        val hecho = withContext(Dispatchers.IO) { db.settingDao().get("auto_bloqueador") }
+        val hecho = withContext(Dispatchers.IO) { db.settingDao().get("bloqueador_ligero") }
         if (hecho == null) {
             GeckoMotor.arrancar(context)
             delay(2_500)
-            val ya = GeckoMotor.extensiones.value.any {
+            val lista = GeckoMotor.extensiones.value
+            val completo = lista.firstOrNull { it.id == "uBlock0@raymondhill.net" }
+            val otro = lista.any {
                 val n = it.nombre.lowercase()
-                "ublock" in n || "adguard" in n || "adblock" in n
+                it.id != "uBlock0@raymondhill.net" && ("ublock" in n || "adguard" in n || "adblock" in n)
             }
-            if (!ya) {
-                Bitacora.add(LogKind.SISTEMA, "Primer arranque: instalando el bloqueador uBlock Origin")
+            if (!otro) {
+                Bitacora.add(LogKind.SISTEMA, "Instalando el bloqueador uBlock Origin Lite" + if (completo != null) " (reemplaza al completo, que retrasaba el arranque)" else "")
                 GeckoMotor.instalar(TIENDA.first().xpi)
+                // Sólo se quita el completo cuando la Lite ya está instalada; si la descarga
+                // falla, se queda el que había y se reintenta en el próximo arranque.
+                var intentos = 0
+                while (intentos < 30 && GeckoMotor.extensiones.value.none { it.id == "uBOLiteRedux@raymondhill.net" }) {
+                    delay(2_000)
+                    intentos++
+                }
+                if (GeckoMotor.extensiones.value.none { it.id == "uBOLiteRedux@raymondhill.net" }) return@LaunchedEffect
+                if (completo != null) GeckoMotor.desinstalar(completo.id)
             }
-            withContext(Dispatchers.IO) { db.settingDao().put(Setting("auto_bloqueador", "1")) }
+            withContext(Dispatchers.IO) { db.settingDao().put(Setting("bloqueador_ligero", "1")) }
         }
     }
 
