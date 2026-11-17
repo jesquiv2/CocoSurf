@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.10.1 — 2026-11-17
+- Buscador: ya no atrapa al usuario. Tiene un botón ✕, Atrás lo cierra siempre (aunque el teclado tenga el foco) y el cursor sigue activo para tocar fuera.
+- Arranque: el motor arranca justo después de pintar la primera pantalla, a la par de la carga de ajustes y pestañas, en vez de bloquearlas.
+
 ## 1.10.0 — 2026-11-03
 - «Acerca de» rediseñado: el icono, más pequeño, va a la izquierda y junto a él la versión, el motor y el dispositivo. Un botón «Otros» despliega (y vuelve a plegar) Android, arquitectura y memoria. Se quita la línea del motor bajo los créditos; quedan los de JEM Desarrollos y «Invítame un café».
 - Doble clic sobre un botón de la interfaz (p. ej. «Exportar» en Bitácora o Diagnóstico): el segundo clic ya no cae en lo que aparece debajo —la barra de direcciones abría el teclado y apagaba el cursor—. El cursor ignora un clic repetido en el mismo punto dentro de 0,45 s sobre la interfaz propia. Además, soltar OK tras una pulsación larga siempre levanta el toque del cursor.
