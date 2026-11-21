@@ -69,12 +69,23 @@ object Bitacora {
         synchronized(lock) {
             items.add(0, entrada)
             while (items.size > MAX) items.removeAt(items.size - 1)
-            runCatching {
-                archivoHistorial()?.appendText(
-                    "${entrada.at}|${kind.name}|${t.replace('\n', ' ').replace('\r', ' ')}\n",
-                )
-            }
         }
+        // A disco, en un hilo aparte: en el televisor (memoria casi agotada y swap) un append podía
+        // dejar la interfaz parada más de 2 s cada vez que se anotaba algo desde el hilo principal.
+        cola.add("${entrada.at}|${kind.name}|${t.replace('\n', ' ').replace('\r', ' ')}\n")
+        escritor.execute { vaciarCola() }
+    }
+
+    private val cola = java.util.concurrent.ConcurrentLinkedQueue<String>()
+    private val escritor = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "bitacora-disco").apply { priority = Thread.MIN_PRIORITY; isDaemon = true }
+    }
+
+    private fun vaciarCola() {
+        if (cola.isEmpty()) return
+        val sb = StringBuilder()
+        while (true) sb.append(cola.poll() ?: break)
+        runCatching { archivoHistorial()?.appendText(sb.toString()) }
     }
 
     /** Copia de los eventos, del más reciente al más antiguo. */
@@ -124,6 +135,7 @@ object Bitacora {
                 archivo()?.appendText("${LogEntry(System.currentTimeMillis(), LogKind.ERROR, detalle).hora()} $detalle en ${hilo.name}\n")
             }
             add(LogKind.ERROR, "Excepción no controlada: $detalle (${hilo.name})")
+            vaciarCola()
             anterior?.uncaughtException(hilo, error)
         }
     }

@@ -66,6 +66,12 @@ object Puntero {
     /** Esperando que el usuario pulse la tecla que se asignará al modo preciso. */
     var capturandoPrecision by mutableStateOf(false)
 
+    /** Tecla del mando que apaga el cursor (flechas = foco de los botones) o lo vuelve a encender (0 = sin asignar). */
+    var teclaAlterna by androidx.compose.runtime.mutableIntStateOf(0)
+
+    /** Esperando que el usuario pulse la tecla que se asignará a alternar cursor/foco. */
+    var capturandoAlterna by mutableStateOf(false)
+
     /** Aviso al cambiar de modo (la pantalla lo muestra como mensaje corto). */
     var alModoFino: (Boolean) -> Unit = {}
 

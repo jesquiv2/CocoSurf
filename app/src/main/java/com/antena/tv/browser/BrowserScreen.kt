@@ -57,6 +57,7 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -610,6 +611,11 @@ fun BrowserScreen() {
     // se recargan al volver a ellas.
     val ultimoUso = remember { mutableMapOf<Int, Long>() }
 
+    fun guardarTeclaAlterna() {
+        val t = Puntero.teclaAlterna
+        scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("cursor_tecla_alt", t.toString())) }
+    }
+
     fun guardarTeclaPrecision() {
         val t = Puntero.teclaPrecision
         scope.launch(Dispatchers.IO) { db.settingDao().put(Setting("cursor_tecla_prec", t.toString())) }
@@ -919,7 +925,7 @@ fun BrowserScreen() {
         if (ancladas != null) extAncladas = ancladas.split(',').filter { it.isNotBlank() }.toSet()
         // Control remoto, modo de página y monitor de recursos.
         val otros = withContext(Dispatchers.IO) {
-            listOf("cursor_vel", "modo_pagina", "mon_pos", "mon_graf", "mon_met", "mon_tecla", "mon_vis", "cursor_tecla_prec")
+            listOf("cursor_vel", "modo_pagina", "mon_pos", "mon_graf", "mon_met", "mon_tecla", "mon_vis", "cursor_tecla_prec", "cursor_tecla_alt")
                 .map { db.settingDao().get(it) }
         }
         otros[0]?.let { velocidadId = it; Puntero.factorVel = factorDeVelocidad(it) }
@@ -930,6 +936,7 @@ fun BrowserScreen() {
         otros[5]?.toIntOrNull()?.let { MonitorConfig.tecla = it }
         otros[6]?.let { MonitorConfig.visible = it == "1" }
         otros[7]?.toIntOrNull()?.let { Puntero.teclaPrecision = it }
+        otros[8]?.toIntOrNull()?.let { Puntero.teclaAlterna = it }
         // Pestañas de la sesión anterior.
         val guardadas = withContext(Dispatchers.IO) {
             Triple(db.settingDao().get("restaurar_pestanas"), db.settingDao().get("pestanas_guardadas"), db.settingDao().get("pestana_activa"))
@@ -1314,6 +1321,7 @@ fun BrowserScreen() {
         }
         actividad?.alMonitorCambio = { guardarMonitor() }
         actividad?.alPrecisionCambio = { guardarTeclaPrecision() }
+        actividad?.alAlternaCambio = { guardarTeclaAlterna() }
         Puntero.alModoFino = { fino -> toast(if (fino) "Cursor corto (preciso)" else "Cursor largo (rápido)") }
         onDispose {
             actividad?.alRecortarMemoria = null
@@ -1358,14 +1366,32 @@ fun BrowserScreen() {
         val hecho = withContext(Dispatchers.IO) { db.settingDao().get("bloqueador_ligero") }
         if (hecho == null) {
             GeckoMotor.arrancar(context)
-            delay(2_500)
+            // La lista de extensiones tarda en llegar (en la TV, hasta ~20 s tras abrir): sin esperarla
+            // se decidiría con una lista vacía y no se vería el uBlock completo que hay que quitar.
+            var esperas = 0
+            while (esperas < 40 && GeckoMotor.extensiones.value.none { it.id != "navegador@antena.tv" }) {
+                delay(1_500)
+                esperas++
+            }
             val lista = GeckoMotor.extensiones.value
-            val completo = lista.firstOrNull { it.id == "uBlock0@raymondhill.net" }
+            fun esLite(e: com.antena.tv.gecko.ExtInfo) = e.id == "uBOLiteRedux@raymondhill.net" || "lite" in e.nombre.lowercase()
+            val completo = lista.firstOrNull { e ->
+                val n = e.nombre.lowercase()
+                "ublock" in n && !esLite(e)
+            }
+            val lite = lista.any { esLite(it) }
             val otro = lista.any {
                 val n = it.nombre.lowercase()
-                it.id != "uBlock0@raymondhill.net" && ("ublock" in n || "adguard" in n || "adblock" in n)
+                ("adguard" in n || "adblock" in n) && !esLite(it)
             }
-            if (!otro) {
+            Bitacora.add(
+                LogKind.SISTEMA,
+                "Bloqueador: extensiones [${lista.joinToString { "${it.nombre} (${it.id})" }}] · completo=${completo != null} lite=$lite otro=$otro",
+            )
+            if (lite && completo != null) {
+                // Ya está la Lite pero quedó el completo: se quita.
+                GeckoMotor.desinstalar(completo.id)
+            } else if (!otro && !lite) {
                 Bitacora.add(LogKind.SISTEMA, "Instalando el bloqueador uBlock Origin Lite" + if (completo != null) " (reemplaza al completo, que retrasaba el arranque)" else "")
                 GeckoMotor.instalar(TIENDA.first().xpi)
                 // Sólo se quita el completo cuando la Lite ya está instalada; si la descarga
@@ -1376,7 +1402,10 @@ fun BrowserScreen() {
                     intentos++
                 }
                 if (GeckoMotor.extensiones.value.none { it.id == "uBOLiteRedux@raymondhill.net" }) return@LaunchedEffect
-                if (completo != null) GeckoMotor.desinstalar(completo.id)
+                // Se vuelve a mirar la lista: la Lite ya llegó y puede que el completo no estuviera a la vista antes.
+                GeckoMotor.extensiones.value.firstOrNull { e ->
+                    "ublock" in e.nombre.lowercase() && !esLite(e)
+                }?.let { GeckoMotor.desinstalar(it.id) }
             }
             withContext(Dispatchers.IO) { db.settingDao().put(Setting("bloqueador_ligero", "1")) }
         }
@@ -2065,7 +2094,8 @@ fun BrowserScreen() {
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Noche)) {
+    // Hasta restaurar las pestañas se ve sólo el fondo: antes asomaba Inicio un instante y luego saltaba a las pestañas.
+    Box(Modifier.fillMaxSize().background(Noche).alpha(if (pestanasCargadas) 1f else 0f)) {
         Column(Modifier.fillMaxSize()) {
             // Pestañas + barra de direcciones forman un solo bloque que sube y
             // baja como una persiana: mientras está arriba no ocupa sitio ni
@@ -2514,6 +2544,7 @@ fun BrowserScreen() {
                                 onModoPagina = ::elegirModoPagina,
                                 onMonitorCambio = ::guardarMonitor,
                                 onPrecisionCambio = ::guardarTeclaPrecision,
+                                onAlternaCambio = ::guardarTeclaAlterna,
                                 restaurarPestanas = restaurarPestanas,
                                 onRestaurarPestanas = ::elegirRestaurar,
                                 precalentar = precalentarMotor,

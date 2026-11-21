@@ -1611,6 +1611,7 @@ fun ConfiguracionPage(
     onModoPagina: (String) -> Unit = {},
     onMonitorCambio: () -> Unit = {},
     onPrecisionCambio: () -> Unit = {},
+    onAlternaCambio: () -> Unit = {},
     restaurarPestanas: Boolean = true,
     onRestaurarPestanas: (Boolean) -> Unit = {},
     precalentar: Boolean = true,
@@ -1779,6 +1780,38 @@ fun ConfiguracionPage(
                                 titulo = "Quitar la tecla",
                                 onClick = { com.antena.tv.cursor.Puntero.teclaPrecision = 0; onPrecisionCambio() },
                             ) { RemoteChip(label = "Quitar", small = true, onClick = { com.antena.tv.cursor.Puntero.teclaPrecision = 0; onPrecisionCambio() }) }
+                        }
+                    }
+                    SeccionAjustes("Cursor o foco") {
+                        Text(
+                            "Asigna una tecla para apagar el cursor y moverte con las flechas por los botones " +
+                                "(foco), o volver al cursor. Útil en pantallas donde el cursor estorba.",
+                            style = AntenaType.meta,
+                            color = FosforoTenue,
+                            modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 4.dp),
+                        )
+                        FilaAjuste(
+                            titulo = "Tecla para alternar cursor y foco",
+                            descripcion = "Pulsa «Asignar» y luego la tecla del mando. No sirven las flechas, OK, Atrás ni Menú.",
+                            onClick = { com.antena.tv.cursor.Puntero.capturandoAlterna = true },
+                        ) {
+                            RemoteChip(
+                                label = when {
+                                    com.antena.tv.cursor.Puntero.capturandoAlterna -> "Pulsa una tecla…"
+                                    com.antena.tv.cursor.Puntero.teclaAlterna == 0 -> "Asignar"
+                                    else -> MonitorConfig.nombreTecla(com.antena.tv.cursor.Puntero.teclaAlterna)
+                                },
+                                small = true,
+                                accent = com.antena.tv.cursor.Puntero.capturandoAlterna,
+                                onClick = { com.antena.tv.cursor.Puntero.capturandoAlterna = true },
+                            )
+                        }
+                        if (com.antena.tv.cursor.Puntero.teclaAlterna != 0) {
+                            Separador(Modifier.padding(horizontal = 14.dp))
+                            FilaAjuste(
+                                titulo = "Quitar la tecla",
+                                onClick = { com.antena.tv.cursor.Puntero.teclaAlterna = 0; onAlternaCambio() },
+                            ) { RemoteChip(label = "Quitar", small = true, onClick = { com.antena.tv.cursor.Puntero.teclaAlterna = 0; onAlternaCambio() }) }
                         }
                     }
                     SeccionAjustes("Atajos del mando") {

@@ -98,6 +98,9 @@ class MainActivity : ComponentActivity() {
     /** Se asignó otra tecla al cursor preciso: la pantalla la guarda. */
     var alPrecisionCambio: (() -> Unit)? = null
 
+    /** Se asignó otra tecla a alternar cursor/foco: la pantalla la guarda. */
+    var alAlternaCambio: (() -> Unit)? = null
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         // Tecla del cursor preciso: asignarla (modo captura) o usarla.
         if (Puntero.capturandoPrecision) {
@@ -110,6 +113,26 @@ class MainActivity : ComponentActivity() {
                     alPrecisionCambio?.invoke()
                 }
             }
+            return true
+        }
+        if (Puntero.capturandoAlterna) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+                    Puntero.capturandoAlterna = false
+                } else if (!MonitorConfig.reservada(event.keyCode) && event.keyCode != MonitorConfig.tecla &&
+                    event.keyCode != Puntero.teclaPrecision
+                ) {
+                    Puntero.teclaAlterna = event.keyCode
+                    Puntero.capturandoAlterna = false
+                    alAlternaCambio?.invoke()
+                }
+            }
+            return true
+        }
+        if (Puntero.teclaAlterna != 0 && event.keyCode == Puntero.teclaAlterna &&
+            !MonitorConfig.reservada(event.keyCode)
+        ) {
+            if (event.action == KeyEvent.ACTION_UP) Puntero.alMenu()
             return true
         }
         if (Puntero.teclaPrecision != 0 && event.keyCode == Puntero.teclaPrecision &&

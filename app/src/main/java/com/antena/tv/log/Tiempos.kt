@@ -71,9 +71,28 @@ object Tiempos {
     private fun vigilarInterfaz() {
         val h = Handler(Looper.getMainLooper())
         var esperado = SystemClock.uptimeMillis() + 250
+        // Vigilante aparte: si el hilo principal lleva parado más de 0,7 s anota DÓNDE está
+        // (su pila de llamadas), que es lo que dice qué lo frena. Una sola vez por parada.
+        val latido = java.util.concurrent.atomic.AtomicLong(SystemClock.uptimeMillis())
+        val principal = Looper.getMainLooper().thread
+        Thread({
+            var anotada = 0L
+            while (true) {
+                try { Thread.sleep(150) } catch (_: InterruptedException) { return@Thread }
+                val ultimo = latido.get()
+                if (SystemClock.uptimeMillis() - ultimo > 700 && anotada != ultimo) {
+                    anotada = ultimo
+                    val pila = principal.stackTrace.take(14).joinToString(" ← ") {
+                        "${it.className.substringAfterLast('.')}.${it.methodName}"
+                    }
+                    Bitacora.add(LogKind.ERROR, "Interfaz parada en: $pila")
+                }
+            }
+        }, "vigilante-interfaz").apply { isDaemon = true; priority = Thread.MAX_PRIORITY; start() }
         h.postDelayed(object : Runnable {
             override fun run() {
                 val ahora = SystemClock.uptimeMillis()
+                latido.set(ahora)
                 val retraso = ahora - esperado
                 if (retraso >= 500) {
                     val msg = "Interfaz sin responder ${s(retraso)}" + libres()
