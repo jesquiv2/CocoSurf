@@ -1381,59 +1381,27 @@ fun BrowserScreen() {
         if (overlay is Overlay.Menu) Actualizador.buscarAlAbrir(context)
     }
 
-    // Complementos pesados fuera. Cada bloqueador que carga al arrancar retiene las páginas hasta
-    // terminar de iniciar: con uBlock Origin completo, AdGuard y Privacy Badger a la vez, la primera
-    // página tardaba 20–50 s en la TV. Se deja uBlock Origin Lite (reglas ya compiladas por el motor;
-    // ~5 s). Dos piezas:
-    //  · Migración única: instala la Lite y marca para quitar los otros tres bloqueadores.
-    //  · «Pendientes por quitar»: Gecko a veces no llega a guardar una desinstalación (el sistema
-    //    cierra la app a los pocos segundos), y la extensión reaparecía al abrir. Cada id pendiente se
-    //    vuelve a quitar en cada arranque hasta que ya no aparece; entonces se borra de la lista.
+    // Bloqueador de anuncios: uBlock Origin completo (el que bloquea de verdad anuncios y elementos de
+    // las páginas). Se instala UNA vez si no está; después manda el usuario. (Se probó la versión
+    // «Lite» y los anuncios volvieron por todos lados, así que se regresó a la completa.)
     LaunchedEffect(Unit) {
         delay(6_000)
-        GeckoMotor.arrancar(context)
-        // La lista de extensiones tarda en llegar (en la TV, hasta ~20 s tras abrir).
-        var esperas = 0
-        while (esperas < 40 && GeckoMotor.extensiones.value.none { it.id != "navegador@antena.tv" }) {
-            delay(1_500)
-            esperas++
-        }
-        val lite = "uBOLiteRedux@raymondhill.net"
-        val pesados = listOf("uBlock0@raymondhill.net", "adguardadblocker@adguard.com", "jid1-MnnxcxisBPnSXQ@jetpack")
-        val (migrada, guardadas) = withContext(Dispatchers.IO) {
-            db.settingDao().get("migracion_bloqueador") to db.settingDao().get("ext_pendientes_quitar")
-        }
-        var pendientes = guardadas.orEmpty().split(',').filter { it.isNotBlank() }.toSet()
-        var lista = GeckoMotor.extensiones.value
-        Bitacora.add(
-            LogKind.SISTEMA,
-            "Complementos al arrancar: [${lista.joinToString { "${it.nombre} (${it.id})" }}] · pendientes por quitar: ${pendientes.ifEmpty { setOf("ninguno") }.joinToString()}",
-        )
-        if (migrada == null) {
-            pendientes = pendientes + pesados
-            withContext(Dispatchers.IO) { db.settingDao().put(Setting("migracion_bloqueador", "1")) }
-        }
-        // Si hay algo viejo por quitar y la Lite no está, se instala (en cada arranque hasta lograrlo).
-        if (lista.none { it.id == lite } && lista.any { it.id in pendientes }) {
-            Bitacora.add(LogKind.SISTEMA, "Instalando uBlock Origin Lite (reemplaza a uBlock completo, AdGuard y Privacy Badger)")
-            GeckoMotor.instalar(TIENDA.first().xpi)
-        }
-        // Sólo se quita lo viejo cuando la Lite ya está (o no había bloqueador que sustituir).
-        var intentos = 0
-        while (intentos < 30 && lista.none { it.id == lite } && lista.any { it.id in pendientes }) {
-            delay(2_000)
-            lista = GeckoMotor.extensiones.value
-            intentos++
-        }
-        if (lista.any { it.id == lite } || lista.none { it.id in pesados }) {
-            lista.filter { it.id in pendientes }.forEach {
-                Bitacora.add(LogKind.SISTEMA, "Quitando el complemento ${it.nombre} (${it.id})")
-                GeckoMotor.desinstalar(it.id)
+        val hecho = withContext(Dispatchers.IO) { db.settingDao().get("auto_ublock_completo") }
+        if (hecho == null) {
+            GeckoMotor.arrancar(context)
+            // La lista de extensiones tarda en llegar a veces; se espera un poco antes de decidir.
+            var esperas = 0
+            while (esperas < 12 && GeckoMotor.extensiones.value.none { it.id != "navegador@antena.tv" }) {
+                delay(1_500)
+                esperas++
             }
+            val completo = GeckoMotor.extensiones.value.any { it.id == "uBlock0@raymondhill.net" }
+            if (!completo) {
+                Bitacora.add(LogKind.SISTEMA, "Instalando uBlock Origin (bloqueador completo)")
+                GeckoMotor.instalar(TIENDA.first().xpi)
+            }
+            withContext(Dispatchers.IO) { db.settingDao().put(Setting("auto_ublock_completo", "1")) }
         }
-        // Lo que ya no está en la lista se da por quitado.
-        val siguen = pendientes.filter { id -> lista.any { it.id == id } }.toSet()
-        withContext(Dispatchers.IO) { db.settingDao().put(Setting("ext_pendientes_quitar", siguen.joinToString(","))) }
     }
 
     // Fase 6 · bitácora: la primera entrada explica con qué se arrancó.
@@ -2890,14 +2858,7 @@ fun BrowserScreen() {
                         iconos = bitmaps,
                         aviso = av,
                         onAlternar = { GeckoMotor.alternar(it) },
-                        onDesinstalar = { ext ->
-                            // Se anota como pendiente: si Gecko no llega a guardarlo, se repite al abrir.
-                            scope.launch(Dispatchers.IO) {
-                                val ya = db.settingDao().get("ext_pendientes_quitar").orEmpty().split(',').filter { it.isNotBlank() }
-                                db.settingDao().put(Setting("ext_pendientes_quitar", (ya + ext.id).distinct().joinToString(",")))
-                            }
-                            GeckoMotor.desinstalar(ext.id)
-                        },
+                        onDesinstalar = { GeckoMotor.desinstalar(it.id) },
                         onInstalar = { GeckoMotor.instalar(it) },
                         // La tienda se abre en una pestaña normal: el índice general
                         // o la ficha del addon que el usuario quiera revisar.

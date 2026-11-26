@@ -101,14 +101,6 @@ private const val AMO_INDICE = "https://addons.mozilla.org/es-ES/firefox/extensi
 
 /** Links directos a la tienda AMO (.xpi firmados) para montar en un toque. */
 internal val TIENDA = listOf(
-    // La versión ligera (MV3): el bloqueo lo hace el motor con reglas ya compiladas, así que no
-    // arranca nada pesado ni retiene las páginas mientras carga. Es la que cuida el arranque de la TV.
-    AddonTienda(
-        "uBlock Origin Lite",
-        "uBOLiteRedux@raymondhill.net",
-        "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin-lite/latest.xpi",
-        "https://addons.mozilla.org/es-ES/firefox/addon/ublock-origin-lite/",
-    ),
     AddonTienda(
         "uBlock Origin",
         "uBlock0@raymondhill.net",

@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.13.1 — 2026-11-26
+- Se regresa al bloqueador de antes: uBlock Origin completo es otra vez el que se instala por defecto (una sola vez, si no está) y la tienda de complementos lo ofrece primero. Con la «Lite» y la limpieza automática de bloqueadores de la 1.11.0 los anuncios volvieron por todas partes. Se quita la migración, la lista de «pendientes por quitar» y la desinstalación automática. Lo demás (historial de pestañas, onda del clic, barras, distribución para Play) se mantiene. Cambio esperado: la primera página puede volver a tardar al abrir, como antes de la 1.10.3.
+
 ## 1.13.0 — 2026-11-25
 - Versión para Google Play (distribución «play»): sin autoactualizador, sin «acceso a todos los archivos» ni permisos de fotos/videos/audio, con `targetSdk` 36 y paquete AAB. La distribución «directo» (APK de GitHub) sigue igual. Se agregan `docs/PRIVACIDAD.md`, `docs/FICHA_GOOGLE_PLAY.md` y `docs/DISTRIBUCION.md` (cómo publicar en Play y otras tiendas).
 - La onda del clic ahora es una vista nativa animada en el hilo de render: ya no se corta cuando el clic abre un panel, una pestaña o hace trabajar a la interfaz.
