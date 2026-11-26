@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.12.1 — 2026-11-25
+- Fluidez en la TV: al subir o bajar las barras, la página se redimensionaba unas 15 veces durante la animación (cada una obliga al motor a recomponer la página) y se pegaba. Ahora la página cambia de tamaño una sola vez y la barra se desliza por encima sólo al dibujar.
+
 ## 1.12.0 — 2026-11-25
 - Pestañas restauradas con su historial: al reabrir la app, «atrás» y «adelante» siguen funcionando en cada pestaña (antes volvían sólo con la última página y no había a dónde regresar). Lo mismo para las pestañas que se sueltan por falta de memoria y se recargan.
 - Toque del cursor: el círculo ámbar relleno se cambió por una onda difusa de agua que se abre y se desvanece sin tapar nada. Además, el botón pulsado ya no pierde su borde al hacer clic.

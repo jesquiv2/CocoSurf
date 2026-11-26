@@ -2134,11 +2134,18 @@ fun BrowserScreen() {
                 Modifier
                     .fillMaxWidth()
                     .zIndex(10f)
-                    .clipToBounds()
+                    // Antes la persiana animaba el ALTO del bloque: la página (GeckoView) se redimensionaba
+                    // ~15 veces en 240 ms y en la TV se pegaba. Ahora el alto cambia de una vez (un solo
+                    // reajuste de la página) y la barra se desliza por encima sólo al dibujar.
                     .layout { medida, restricciones ->
                         val p = medida.measure(restricciones)
-                        val alto = (p.height * chromeFrac).roundToInt()
-                        layout(p.width, alto) { p.place(0, alto - p.height) }
+                        val alto = if (chromeVisible) p.height else 0
+                        layout(p.width, alto) {
+                            p.placeWithLayer(0, 0) {
+                                translationY = -(1f - chromeFrac) * p.height
+                                alpha = chromeFrac
+                            }
+                        }
                     }
                     .onSizeChanged { Puntero.altoBarras = it.height.toFloat() }
                     .focusProperties { canFocus = chromeVisible },
