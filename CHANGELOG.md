@@ -1,5 +1,8 @@
 # Cambios
 
+## 1.10.5 — 2026-11-25
+- Primera página lenta: la Bitácora de la TV mostró que seguían corriendo uBlock Origin completo y la Lite a la vez. La Lite sí se instaló en la 1.10.3, pero el completo nunca se quitó (la lista de extensiones llegaba vacía cuando se decidía) y la migración quedó marcada como hecha, así que no se reintentaba. Ahora se usa una marca nueva, se espera a tener la lista, y si hay Lite y completo a la vez se quita el completo. La Bitácora anota «Bloqueador: extensiones […]» con lo que encontró.
+
 ## 1.10.4 — 2026-11-21
 - Inicio: ya no asoma la página de Inicio antes de las pestañas que tenías abiertas; se ve el fondo liso hasta restaurarlas y aparecen directamente tus pestañas con la última activa.
 - Nuevo ajuste (Configuración → Control remoto → «Cursor o foco»): asigna una tecla del mando que apaga el cursor (las flechas mueven el foco entre los botones) o lo vuelve a encender.

@@ -1363,7 +1363,7 @@ fun BrowserScreen() {
     // sola vez (si después lo vuelve a instalar, manda el usuario).
     LaunchedEffect(Unit) {
         delay(6_000)
-        val hecho = withContext(Dispatchers.IO) { db.settingDao().get("bloqueador_ligero") }
+        val hecho = withContext(Dispatchers.IO) { db.settingDao().get("bloqueador_ligero2") }
         if (hecho == null) {
             GeckoMotor.arrancar(context)
             // La lista de extensiones tarda en llegar (en la TV, hasta ~20 s tras abrir): sin esperarla
@@ -1407,7 +1407,7 @@ fun BrowserScreen() {
                     "ublock" in e.nombre.lowercase() && !esLite(e)
                 }?.let { GeckoMotor.desinstalar(it.id) }
             }
-            withContext(Dispatchers.IO) { db.settingDao().put(Setting("bloqueador_ligero", "1")) }
+            withContext(Dispatchers.IO) { db.settingDao().put(Setting("bloqueador_ligero2", "1")) }
         }
     }
 
