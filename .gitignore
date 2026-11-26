@@ -103,3 +103,7 @@ hs_err_pid*
 # APK en cualquier parte (se entregan aparte, pesan ~300 MB)
 *.apk
 *.aab
+
+*.aab
+keystore.properties
+*.jks

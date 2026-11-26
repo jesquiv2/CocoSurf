@@ -39,7 +39,8 @@ object Almacenamiento {
 
     /** ¿La app puede ver todo el almacenamiento? (Android 11+: «Acceso a todos los archivos»). */
     fun tieneAccesoTotal(c: Context): Boolean =
-        if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() || tienePermisoRuntime(c) else true
+        if (!com.antena.tv.BuildConfig.ARCHIVOS_TOTAL) true
+        else if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager() || tienePermisoRuntime(c) else true
 
     /** Permisos que Android pide con su diálogo normal, según la versión. */
     fun permisosRuntime(): Array<String> = when {
@@ -86,6 +87,8 @@ object Almacenamiento {
         c.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)?.let {
             lista += Volumen("Descargas de Coco Surf", it, false)
         }
+        // Distribución de Google Play: sin permiso de todos los archivos, sólo la carpeta propia de la app.
+        if (!com.antena.tv.BuildConfig.ARCHIVOS_TOTAL) return lista
         runCatching {
             val sm = c.getSystemService(Context.STORAGE_SERVICE) as StorageManager
             if (Build.VERSION.SDK_INT >= 30) {
@@ -116,6 +119,7 @@ object Almacenamiento {
 
     /** Instala un APK con el instalador de Android (pide antes el permiso de «apps desconocidas»). */
     fun instalarApk(c: Context, f: File): String? {
+        if (!com.antena.tv.BuildConfig.ACTUALIZADOR_PROPIO) return "Esta versión no instala APK; se actualiza desde la tienda."
         return runCatching {
             if (!c.packageManager.canRequestPackageInstalls()) {
                 c.startActivity(

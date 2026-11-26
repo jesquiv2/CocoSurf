@@ -1482,8 +1482,11 @@ fun AcercaPage(version: String, onClose: () -> Unit, onAbrir: (String) -> Unit =
                 )
             }
         }
-        Spacer(Modifier.height(16.dp))
-        SeccionActualizacion()
+        // En la versión de Google Play no hay autoactualizador: actualiza la tienda.
+        if (com.antena.tv.BuildConfig.ACTUALIZADOR_PROPIO) {
+            Spacer(Modifier.height(16.dp))
+            SeccionActualizacion()
+        }
         Spacer(Modifier.height(22.dp))
         ACERCA_CREDITOS.forEachIndexed { i, linea ->
             Text(

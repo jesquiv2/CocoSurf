@@ -78,6 +78,8 @@ object Actualizador {
 
     /** Consulta la última Release. Devuelve el estado resultante (también queda en `estado`). */
     suspend fun buscar(c: Context): Estado {
+        // Distribución de Google Play: sólo la tienda actualiza la app; no se consulta nada.
+        if (!com.antena.tv.BuildConfig.ACTUALIZADOR_PROPIO) return Estado.Inactivo
         estado = Estado.Buscando
         val r = withContext(Dispatchers.IO) {
             runCatching {

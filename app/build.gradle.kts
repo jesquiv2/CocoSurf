@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.antena.tv"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.antena.tv"
@@ -15,8 +17,8 @@ android {
         // (Xiaomi, Android 11 / API 30) queda cubierta.
         minSdk = 26
         targetSdk = 34
-        versionCode = 43
-        versionName = "1.12.1"
+        versionCode = 44
+        versionName = "1.13.0"
 
         ndk {
             // M5 · GeckoView arrastra nativos por ABI; sin filtro el APK sale
@@ -38,14 +40,54 @@ android {
         }
     }
 
+    // Clave de subida para Google Play: se lee de keystore.properties (fuera de git). Sin ese archivo
+    // el paquete sale firmado con la clave de depuración (sirve para probar, no para subir).
+    val clavesArchivo = rootProject.file("keystore.properties")
+    val clavesSubida = Properties().apply {
+        if (clavesArchivo.exists()) clavesArchivo.inputStream().use { load(it) }
+    }
+    signingConfigs {
+        if (clavesArchivo.exists()) {
+            create("subida") {
+                storeFile = rootProject.file(clavesSubida.getProperty("storeFile"))
+                storePassword = clavesSubida.getProperty("storePassword")
+                keyAlias = clavesSubida.getProperty("keyAlias")
+                keyPassword = clavesSubida.getProperty("keyPassword")
+            }
+        }
+    }
+
+    // Dos distribuciones del mismo código:
+    //  · directo: el APK de GitHub para instalar en la TV (se actualiza solo desde GitHub y el
+    //    administrador de archivos ve todo el almacenamiento).
+    //  · play: el paquete (AAB) para Google Play. Sin autoactualizador (Play prohíbe actualizarse
+    //    por fuera), sin «acceso a todos los archivos» ni permisos de medios, y con el nivel de API
+    //    que exige la tienda.
+    flavorDimensions += "dist"
+    productFlavors {
+        create("directo") {
+            dimension = "dist"
+            buildConfigField("boolean", "ACTUALIZADOR_PROPIO", "true")
+            buildConfigField("boolean", "ARCHIVOS_TOTAL", "true")
+            // Las TV que ya tienen el APK sólo aceptan una actualización firmada con la misma clave.
+            signingConfig = signingConfigs.getByName("debug")
+        }
+        create("play") {
+            dimension = "dist"
+            targetSdk = 36
+            buildConfigField("boolean", "ACTUALIZADOR_PROPIO", "false")
+            buildConfigField("boolean", "ARCHIVOS_TOTAL", "false")
+            signingConfig = signingConfigs.findByName("subida") ?: signingConfigs.getByName("debug")
+        }
+    }
+
     buildTypes {
         release {
             // Menos código cargado en memoria (el dex sin recortar pesaba ~30 MB en la interfaz).
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Mientras no haya una clave propia, se firma con la de depuración (sirve para instalar y probar).
-            signingConfig = signingConfigs.getByName("debug")
+            // La firma la pone cada distribución (ver productFlavors).
         }
     }
 
@@ -60,6 +102,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -94,7 +137,7 @@ dependencies {
 val versionForFile = android.defaultConfig.versionName ?: "0"
 val rootDirRef = rootProject.layout.projectDirectory.asFile
 val buildDirRef = layout.buildDirectory.get().asFile
-mapOf("assembleDebug" to "debug", "assembleRelease" to "release").forEach { (taskName, variant) ->
+mapOf("assembleDirectoDebug" to "directo/debug", "assembleDirectoRelease" to "directo/release").forEach { (taskName, variant) ->
     tasks.matching { it.name == taskName }.configureEach {
         doLast {
             val outDir = File(buildDirRef, "outputs/apk/$variant")
@@ -110,7 +153,7 @@ mapOf("assembleDebug" to "debug", "assembleRelease" to "release").forEach { (tas
             }
 
             apks.forEach { apk ->
-                val suffix = apk.name.removePrefix("app-").removeSuffix(".apk")
+                val suffix = apk.name.removePrefix("app-directo-").removeSuffix(".apk")
                 // Fase 8 · el debug no se anuncia en el nombre: CocoSurf-<v>.apk
                 val targetName = if (suffix == "debug") {
                     "CocoSurf-$versionForFile.apk"
@@ -152,5 +195,16 @@ mapOf("assembleDebug" to "debug", "assembleRelease" to "release").forEach { (tas
                 }
             }
         }
+    }
+}
+
+// El paquete para Google Play (AAB) también se copia a la raíz: CocoSurf-<versión>-play.aab
+tasks.matching { it.name == "bundlePlayRelease" }.configureEach {
+    doLast {
+        val aab = File(buildDirRef, "outputs/bundle/playRelease").listFiles { f: File -> f.extension == "aab" }?.firstOrNull()
+            ?: return@doLast
+        rootDirRef.listFiles { f: File -> f.isFile && f.extension == "aab" && f.name.startsWith("CocoSurf-") }?.forEach { it.delete() }
+        aab.copyTo(File(rootDirRef, "CocoSurf-$versionForFile-play.aab"), overwrite = true)
+        println("AAB copiado en la raiz del proyecto: CocoSurf-$versionForFile-play.aab")
     }
 }

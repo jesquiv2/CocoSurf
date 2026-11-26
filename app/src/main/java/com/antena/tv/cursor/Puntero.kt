@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -92,10 +93,6 @@ object Puntero {
 
     /** OK mantenido: se dibuja un halo. */
     var pulsado by mutableStateOf(false)
-        private set
-
-    /** Cuenta cada pulsación de OK: dispara la onda de agua aunque el toque sea muy breve. */
-    var toques by mutableStateOf(0)
         private set
 
     /** Se actualiza en cada movimiento: el puntero se atenúa si queda quieto. */
@@ -303,9 +300,9 @@ object Puntero {
                 KeyEvent.ACTION_DOWN ->
                     if (ev.repeatCount == 0 && activo) {
                         registrarAccion(pos.y)
+                        onda(decor)
                         toque(decor, MotionEvent.ACTION_DOWN)
                         pulsado = true
-                        toques++
                         h.removeCallbacks(mantener)
                         h.postDelayed(mantener, 650)
                     }
@@ -641,6 +638,64 @@ object Puntero {
         decor.dispatchTouchEvent(e); e.recycle()
     }
 
+    /**
+     * Onda de agua del toque. Es una vista nativa animada con ViewPropertyAnimator (escala y
+     * transparencia), que Android ejecuta en el hilo de render: sigue fluida aunque el clic haga
+     * trabajar mucho al hilo principal (abrir un panel, cambiar de pestaña…). Con la animación
+     * dibujada desde Compose se cortaba justo al pulsar un botón.
+     */
+    private class OndaDrawable : android.graphics.drawable.Drawable() {
+        private val pincel = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        private val ambar = Ambar.toArgb()
+
+        override fun onBoundsChange(b: android.graphics.Rect) {
+            val r = b.width() / 2f
+            val suave = ambar and 0x00FFFFFF
+            val fuerte = (0x8C shl 24) or suave
+            pincel.shader = android.graphics.RadialGradient(
+                b.exactCenterX(), b.exactCenterY(), r,
+                intArrayOf(suave, suave, fuerte, suave),
+                floatArrayOf(0f, 0.55f, 0.82f, 1f),
+                android.graphics.Shader.TileMode.CLAMP,
+            )
+        }
+
+        override fun draw(c: android.graphics.Canvas) {
+            c.drawCircle(bounds.exactCenterX(), bounds.exactCenterY(), bounds.width() / 2f, pincel)
+        }
+
+        override fun setAlpha(alpha: Int) { pincel.alpha = alpha }
+        override fun setColorFilter(f: android.graphics.ColorFilter?) { pincel.colorFilter = f }
+        @Deprecated("Deprecated in Java")
+        override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+    }
+
+    private fun onda(decor: android.view.View) {
+        val raiz = decor as? android.view.ViewGroup ?: return
+        val lado = (72 * densidad).toInt().coerceAtLeast(48)
+        listOf(0L to 1f, 160L to 0.55f).forEach { (retraso, fuerza) ->
+            val v = android.view.View(decor.context).apply {
+                background = OndaDrawable()
+                isClickable = false
+                isFocusable = false
+                alpha = fuerza
+                scaleX = 0.14f
+                scaleY = 0.14f
+                translationX = pos.x - lado / 2f
+                translationY = pos.y - lado / 2f
+                setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+            }
+            raiz.addView(v, android.widget.FrameLayout.LayoutParams(lado, lado))
+            v.animate()
+                .scaleX(1f).scaleY(1f).alpha(0f)
+                .setStartDelay(retraso)
+                .setDuration(700)
+                .setInterpolator(android.view.animation.DecelerateInterpolator(1.6f))
+                .withEndAction { raiz.removeView(v) }
+                .start()
+        }
+    }
+
     // Doble clic sobre la interfaz propia: el primero ya hizo su trabajo (cerrar una pestaña,
     // abrir un menú…) y la pantalla de debajo cambia de sitio; el segundo caería sobre lo que
     // aparece detrás —la barra de direcciones, un campo de la página— y abriría el teclado,
@@ -697,15 +752,6 @@ fun PunteroOverlay() {
     if (!Puntero.activo) return
     var origen by remember { mutableStateOf(Offset.Zero) }
     var tenue by remember { mutableStateOf(false) }
-    // Onda del toque: 0 = recién pulsado, 1 = terminada. Nace donde estaba el cursor.
-    val onda = remember { androidx.compose.animation.core.Animatable(1f) }
-    var onda0 by remember { mutableStateOf(Offset.Zero) }
-    LaunchedEffect(Puntero.toques) {
-        if (Puntero.toques == 0) return@LaunchedEffect
-        onda0 = Puntero.pos - origen
-        onda.snapTo(0f)
-        onda.animateTo(1f, androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
-    }
     LaunchedEffect(Puntero.movimiento, Puntero.pulsado) {
         tenue = false
         delay(3500)
@@ -752,29 +798,6 @@ fun PunteroOverlay() {
             // Mitad del tamaño anterior (~17 dp de alto), flecha blanca de contorno
             // oscuro al estilo de los punteros de escritorio de Apple.
             val s = 0.62f * density
-            // Toque: dos ondas difusas que se abren y se desvanecen, como una gota en el agua.
-            // No tapa ni cambia nada de lo que hay debajo (sin relleno, sin contorno duro).
-            val t = onda.value
-            if (t < 1f) {
-                for (retraso in floatArrayOf(0f, 0.22f)) {
-                    val u = ((t - retraso) / (1f - retraso)).coerceIn(0f, 1f)
-                    if (u <= 0f || u >= 1f) continue
-                    val radio = (5f + 31f * u).dp.toPx()
-                    val fuerza = (1f - u) * (1f - u) * (if (retraso == 0f) 0.55f else 0.3f)
-                    drawCircle(
-                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                            0f to Color.Transparent,
-                            0.55f to Color.Transparent,
-                            0.82f to Ambar.copy(alpha = fuerza),
-                            1f to Color.Transparent,
-                            center = onda0,
-                            radius = radio,
-                        ),
-                        radius = radio,
-                        center = onda0,
-                    )
-                }
-            }
             // Modo corto: un aro alrededor del punto caliente avisa de que va fino.
             if (Puntero.modoFino) {
                 drawCircle(Color.White.copy(alpha = 0.9f), radius = 11.dp.toPx(), center = p, style = Stroke(1.5.dp.toPx()))
