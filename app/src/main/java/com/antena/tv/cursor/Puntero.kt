@@ -94,6 +94,10 @@ object Puntero {
     var pulsado by mutableStateOf(false)
         private set
 
+    /** Cuenta cada pulsación de OK: dispara la onda de agua aunque el toque sea muy breve. */
+    var toques by mutableStateOf(0)
+        private set
+
     /** Se actualiza en cada movimiento: el puntero se atenúa si queda quieto. */
     var movimiento by mutableStateOf(0L)
         private set
@@ -301,6 +305,7 @@ object Puntero {
                         registrarAccion(pos.y)
                         toque(decor, MotionEvent.ACTION_DOWN)
                         pulsado = true
+                        toques++
                         h.removeCallbacks(mantener)
                         h.postDelayed(mantener, 650)
                     }
@@ -664,11 +669,9 @@ object Puntero {
         }
         if (accion == MotionEvent.ACTION_DOWN) {
             downTime = ahora
-            // El «ratón» del hover se retira antes de pulsar: un dedo y un ratón a la vez no existen.
-            if (hoverActivo) {
-                enviarHover(decor, MotionEvent.ACTION_HOVER_EXIT)
-                hoverActivo = false
-            }
+            // El hover se deja puesto: el dedo y el ratón sintéticos tienen cada uno su dispositivo,
+            // y retirarlo apagaba el borde del botón justo al pulsarlo. (Sobre la página web nunca
+            // hay hover; ahí no cambia nada.)
         }
         val e = tactil(downTime, ahora, accion, pos.x, pos.y)
         decor.dispatchTouchEvent(e)
@@ -694,6 +697,15 @@ fun PunteroOverlay() {
     if (!Puntero.activo) return
     var origen by remember { mutableStateOf(Offset.Zero) }
     var tenue by remember { mutableStateOf(false) }
+    // Onda del toque: 0 = recién pulsado, 1 = terminada. Nace donde estaba el cursor.
+    val onda = remember { androidx.compose.animation.core.Animatable(1f) }
+    var onda0 by remember { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(Puntero.toques) {
+        if (Puntero.toques == 0) return@LaunchedEffect
+        onda0 = Puntero.pos - origen
+        onda.snapTo(0f)
+        onda.animateTo(1f, androidx.compose.animation.core.tween(700, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+    }
     LaunchedEffect(Puntero.movimiento, Puntero.pulsado) {
         tenue = false
         delay(3500)
@@ -740,9 +752,28 @@ fun PunteroOverlay() {
             // Mitad del tamaño anterior (~17 dp de alto), flecha blanca de contorno
             // oscuro al estilo de los punteros de escritorio de Apple.
             val s = 0.62f * density
-            if (Puntero.pulsado) {
-                drawCircle(Ambar.copy(alpha = 0.28f), radius = 15.dp.toPx(), center = p)
-                drawCircle(Ambar, radius = 15.dp.toPx(), center = p, style = Stroke(2.dp.toPx()))
+            // Toque: dos ondas difusas que se abren y se desvanecen, como una gota en el agua.
+            // No tapa ni cambia nada de lo que hay debajo (sin relleno, sin contorno duro).
+            val t = onda.value
+            if (t < 1f) {
+                for (retraso in floatArrayOf(0f, 0.22f)) {
+                    val u = ((t - retraso) / (1f - retraso)).coerceIn(0f, 1f)
+                    if (u <= 0f || u >= 1f) continue
+                    val radio = (5f + 31f * u).dp.toPx()
+                    val fuerza = (1f - u) * (1f - u) * (if (retraso == 0f) 0.55f else 0.3f)
+                    drawCircle(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            0f to Color.Transparent,
+                            0.55f to Color.Transparent,
+                            0.82f to Ambar.copy(alpha = fuerza),
+                            1f to Color.Transparent,
+                            center = onda0,
+                            radius = radio,
+                        ),
+                        radius = radio,
+                        center = onda0,
+                    )
+                }
             }
             // Modo corto: un aro alrededor del punto caliente avisa de que va fino.
             if (Puntero.modoFino) {

@@ -284,6 +284,12 @@ class WebTab(
         }
 
         s.progressDelegate = object : GeckoSession.ProgressDelegate {
+            // Historial de la pestaña (páginas anteriores/siguientes, posición): se guarda para
+            // poder devolverlo al reabrir la app o al recargar una pestaña descartada.
+            override fun onSessionStateChange(session: GeckoSession, sessionState: GeckoSession.SessionState) {
+                estado = sessionState
+            }
+
             override fun onPageStart(session: GeckoSession, url: String) {
                 if (url.startsWith("http")) {
                     val ahora = android.os.SystemClock.elapsedRealtime()
@@ -425,6 +431,23 @@ class WebTab(
         pedidoEn = android.os.SystemClock.elapsedRealtime()
         url = newUrl
         session.loadUri(newUrl)
+    }
+
+    /** Último estado de sesión que dio Gecko (con todo el historial de la pestaña). */
+    private var estado: GeckoSession.SessionState? = null
+
+    /**
+     * El historial serializado para guardarlo en disco; null si aún no hay o es demasiado grande
+     * (algunas páginas llevan formularios enormes: se prefiere perder el historial a inflar la base).
+     */
+    fun estadoGuardable(): String? = runCatching { estado?.toString() }.getOrNull()
+        ?.takeIf { it.length in 2..120_000 }
+
+    /** Devuelve el historial guardado y carga su página actual. Falso si no se pudo leer. */
+    fun restaurar(guardado: String): Boolean {
+        val st = runCatching { GeckoSession.SessionState.fromString(guardado) }.getOrNull() ?: return false
+        pedidoEn = android.os.SystemClock.elapsedRealtime()
+        return runCatching { session.restoreState(st) }.isSuccess
     }
 
     fun goBack() {

@@ -342,6 +342,9 @@ fun BrowserScreen() {
     val webTabs = remember { mutableMapOf<Int, WebTab>() }
     // Pestañas web cuyo motor se soltó (por memoria o porque cayó): se recargan al volver.
     val descartadas = remember { mutableSetOf<Int>() }
+    // Historial (atrás/adelante) de las pestañas sin motor vivo: el de la sesión anterior o el de
+    // las descartadas. Se devuelve a Gecko al cargarlas; si no, «atrás» no tendría a dónde ir.
+    val historiales = remember { mutableMapOf<Int, String>() }
     // Fase 8 · ventanas emergentes: pestañas que una página abrió con
     // window.close() (se pueden retirar solas) y sus identificadores.
     // Se recuerdan porque webTab() captura estos objetos al crearse.
@@ -593,7 +596,7 @@ fun BrowserScreen() {
             // El motor de la pestaña cayó: se recrea y recarga sola (sin dejar la página muerta).
             w.onProcesoCaido = { motivo ->
                 Bitacora.add(LogKind.ERROR, "Pestaña $id recreada tras caer el motor ($motivo)")
-                webTabs.remove(id)
+                webTabs.remove(id)?.estadoGuardable()?.let { historiales[id] = it }
                 descartadas += id
                 recarga++
                 toast("La página se cerró por falta de memoria; se vuelve a cargar")
@@ -603,7 +606,10 @@ fun BrowserScreen() {
 
     /** M5 · pestaña con motor Gecko (se crea bajo demanda, como WebTab). */
     fun destroy(id: Int) {
-        webTabs.remove(id)?.destroy()
+        val w = webTabs.remove(id) ?: return
+        // Se guarda su historial antes de soltar el motor (descartada por memoria o cerrada).
+        w.estadoGuardable()?.let { historiales[id] = it }
+        w.destroy()
     }
 
     // ── Memoria ──────────────────────────────────────────────────────────
@@ -950,8 +956,14 @@ fun BrowserScreen() {
                     val o = arr.getJSONObject(i)
                     PageTab(i, o.optString("t").ifBlank { hostOf(o.getString("u")) ?: "Página" }, o.getString("u"))
                 }.filter { it.url.startsWith("http") }
+                // Mismo número de pestaña que al guardar: el historial va con su pestaña.
+                val estados = (0 until arr.length()).mapNotNull { i ->
+                    arr.getJSONObject(i).optString("s").takeIf { it.isNotBlank() }?.let { i to it }
+                }.toMap()
                 if (lista.isNotEmpty()) {
                     webTabs.keys.toList().forEach { destroy(it) }
+                    historiales.clear()
+                    historiales.putAll(estados.filterKeys { k -> lista.any { it.id == k } })
                     tabs = lista
                     nextId = lista.size
                     activeId = (guardadas.third?.toIntOrNull() ?: 0).coerceIn(0, lista.size - 1)
@@ -1156,7 +1168,15 @@ fun BrowserScreen() {
             } else {
                 val web = tabs.filter { it.url.startsWith("http") }.take(12)
                 val arr = org.json.JSONArray()
-                web.forEach { arr.put(org.json.JSONObject().put("u", it.url).put("t", it.title)) }
+                // Al restaurar las pestañas se numeran 0, 1, 2…: el historial va con su posición.
+                val vivos = withContext(Dispatchers.Main) {
+                    web.map { webTabs[it.id]?.estadoGuardable() ?: historiales[it.id] }
+                }
+                web.forEachIndexed { i, t ->
+                    val o = org.json.JSONObject().put("u", t.url).put("t", t.title)
+                    vivos[i]?.let { o.put("s", it) }
+                    arr.put(o)
+                }
                 db.settingDao().put(Setting("pestanas_guardadas", arr.toString()))
                 db.settingDao().put(Setting("pestana_activa", web.indexOfFirst { it.id == activeId }.coerceAtLeast(0).toString()))
             }
@@ -2592,7 +2612,8 @@ fun BrowserScreen() {
                                     // Pestaña que se descartó por memoria: se vuelve a cargar.
                                     if (descartadas.remove(activeId)) {
                                         progress = 1
-                                        w.load(activeTab.url)
+                                        val h = historiales.remove(activeId)
+                                        if (h == null || !w.restaurar(h)) w.load(activeTab.url)
                                     }
                                     // Tras caer el motor la vista vieja puede seguir pegada a su
                                     // padre: se despega antes de entregarla (era un cierre de la app).
@@ -2633,6 +2654,23 @@ fun BrowserScreen() {
                 // Con cursor (TV) las asas sólo aparecen al acercarse al borde y se retiran
                 // solas; sin cursor en uso (tablet, táctil) la de arriba queda tenue a la vista.
                 val usoCursor = Puntero.activo && Puntero.movimiento != 0L
+                // Tope de arriba dos veces seguidas: el asa ya avisó («llegaste al límite»); empujar otra
+                // vez baja las barras, como Atrás. Cuenta cuando se suelta ↑ con la página en el tope.
+                val empujeArriba = remember { longArrayOf(0L, 0L) } // [0] último tope · [1] indicador previo
+                LaunchedEffect(Puntero.indicador) {
+                    val ind = Puntero.indicador
+                    val antes = empujeArriba[1].toInt()
+                    empujeArriba[1] = ind.toLong()
+                    val ahora = android.os.SystemClock.elapsedRealtime()
+                    val aplica = webActivo && !pantallaCompleta && !chromeVisible && !scrolled && overlay == null
+                    if (ind == 1 && aplica && empujeArriba[0] != 0L && ahora - empujeArriba[0] < 4_000) {
+                        empujeArriba[0] = 0L
+                        chromeOpen = true
+                        composeView.postDelayed({ barFr.requestFocus() }, 350)
+                    } else if (antes == 1 && ind != 1 && aplica) {
+                        empujeArriba[0] = ahora
+                    }
+                }
                 val yRel = Puntero.pos.y - Puntero.origenY
                 val altoPx = Puntero.altoVentana
                 val cercaArriba = yRel < 72f * densidadPx

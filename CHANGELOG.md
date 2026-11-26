@@ -1,5 +1,11 @@
 # Cambios
 
+## 1.12.0 — 2026-11-25
+- Pestañas restauradas con su historial: al reabrir la app, «atrás» y «adelante» siguen funcionando en cada pestaña (antes volvían sólo con la última página y no había a dónde regresar). Lo mismo para las pestañas que se sueltan por falta de memoria y se recargan.
+- Toque del cursor: el círculo ámbar relleno se cambió por una onda difusa de agua que se abre y se desvanece sin tapar nada. Además, el botón pulsado ya no pierde su borde al hacer clic.
+- Tope de arriba dos veces: al llegar arriba el asa se ensancha; si empujas ↑ otra vez, bajan las barras (como Atrás).
+- Configuración → Control remoto: «Quitar la tecla» ahora explica qué hace (deja el atajo sin tecla).
+
 ## 1.11.0 — 2026-11-25
 - Primera página lenta, causa real (Bitácora de la TV): estaban cargando a la vez uBlock Origin completo, AdGuard y Privacy Badger, y Gecko retiene las páginas hasta que cada uno termina de iniciar. Las desinstalaciones que hacías no se guardaban (el sistema cerraba la app antes de que Gecko las escribiera) y volvían al abrir. Ahora cada desinstalación se anota como pendiente y se repite en cada arranque hasta que de verdad desaparece. Migración única: se instala uBlock Origin Lite y se quitan uBlock completo, AdGuard y Privacy Badger. La Bitácora anota «Complementos al arrancar» con lo que encontró y lo que quita.
 - Actualizaciones: al abrir el menú o «Acerca de» se busca versión nueva en segundo plano (sin bloquear nada). Si hay, el menú muestra «Actualizar a X» y «Acerca de» lleva un punto de aviso. «Actualizar ahora» descarga y abre el instalador de una vez (antes había que pulsar Descargar y luego Instalar).

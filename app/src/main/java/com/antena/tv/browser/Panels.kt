@@ -1796,6 +1796,7 @@ fun ConfiguracionPage(
                             Separador(Modifier.padding(horizontal = 14.dp))
                             FilaAjuste(
                                 titulo = "Quitar la tecla",
+                                descripcion = "Deja el cursor corto sin tecla: se desactiva este atajo (se puede asignar otra después).",
                                 onClick = { com.antena.tv.cursor.Puntero.teclaPrecision = 0; onPrecisionCambio() },
                             ) { RemoteChip(label = "Quitar", small = true, onClick = { com.antena.tv.cursor.Puntero.teclaPrecision = 0; onPrecisionCambio() }) }
                         }
@@ -1828,6 +1829,7 @@ fun ConfiguracionPage(
                             Separador(Modifier.padding(horizontal = 14.dp))
                             FilaAjuste(
                                 titulo = "Quitar la tecla",
+                                descripcion = "Deja el cambio de cursor/foco sin tecla: se desactiva este atajo (se puede asignar otra después).",
                                 onClick = { com.antena.tv.cursor.Puntero.teclaAlterna = 0; onAlternaCambio() },
                             ) { RemoteChip(label = "Quitar", small = true, onClick = { com.antena.tv.cursor.Puntero.teclaAlterna = 0; onAlternaCambio() }) }
                         }
