@@ -1356,59 +1356,64 @@ fun BrowserScreen() {
         }
     }
 
-    // Protección desde el primer arranque: uBlock Origin Lite (tienda oficial de Firefox). El
-    // uBlock Origin completo cargaba sus listas en cada arranque y retenía las páginas: la primera
-    // tardaba 20–40 s en la TV. La versión Lite bloquea con reglas ya compiladas por el motor
-    // (primera página en ~5 s). Se instala UNA vez; quien tenía el completo pasa a la Lite una
-    // sola vez (si después lo vuelve a instalar, manda el usuario).
+    // Al abrir el menú se busca versión nueva (no bloquea nada; si hay, el menú muestra «Actualizar a …»).
+    LaunchedEffect(overlay is Overlay.Menu) {
+        if (overlay is Overlay.Menu) Actualizador.buscarAlAbrir(context)
+    }
+
+    // Complementos pesados fuera. Cada bloqueador que carga al arrancar retiene las páginas hasta
+    // terminar de iniciar: con uBlock Origin completo, AdGuard y Privacy Badger a la vez, la primera
+    // página tardaba 20–50 s en la TV. Se deja uBlock Origin Lite (reglas ya compiladas por el motor;
+    // ~5 s). Dos piezas:
+    //  · Migración única: instala la Lite y marca para quitar los otros tres bloqueadores.
+    //  · «Pendientes por quitar»: Gecko a veces no llega a guardar una desinstalación (el sistema
+    //    cierra la app a los pocos segundos), y la extensión reaparecía al abrir. Cada id pendiente se
+    //    vuelve a quitar en cada arranque hasta que ya no aparece; entonces se borra de la lista.
     LaunchedEffect(Unit) {
         delay(6_000)
-        val hecho = withContext(Dispatchers.IO) { db.settingDao().get("bloqueador_ligero2") }
-        if (hecho == null) {
-            GeckoMotor.arrancar(context)
-            // La lista de extensiones tarda en llegar (en la TV, hasta ~20 s tras abrir): sin esperarla
-            // se decidiría con una lista vacía y no se vería el uBlock completo que hay que quitar.
-            var esperas = 0
-            while (esperas < 40 && GeckoMotor.extensiones.value.none { it.id != "navegador@antena.tv" }) {
-                delay(1_500)
-                esperas++
-            }
-            val lista = GeckoMotor.extensiones.value
-            fun esLite(e: com.antena.tv.gecko.ExtInfo) = e.id == "uBOLiteRedux@raymondhill.net" || "lite" in e.nombre.lowercase()
-            val completo = lista.firstOrNull { e ->
-                val n = e.nombre.lowercase()
-                "ublock" in n && !esLite(e)
-            }
-            val lite = lista.any { esLite(it) }
-            val otro = lista.any {
-                val n = it.nombre.lowercase()
-                ("adguard" in n || "adblock" in n) && !esLite(it)
-            }
-            Bitacora.add(
-                LogKind.SISTEMA,
-                "Bloqueador: extensiones [${lista.joinToString { "${it.nombre} (${it.id})" }}] · completo=${completo != null} lite=$lite otro=$otro",
-            )
-            if (lite && completo != null) {
-                // Ya está la Lite pero quedó el completo: se quita.
-                GeckoMotor.desinstalar(completo.id)
-            } else if (!otro && !lite) {
-                Bitacora.add(LogKind.SISTEMA, "Instalando el bloqueador uBlock Origin Lite" + if (completo != null) " (reemplaza al completo, que retrasaba el arranque)" else "")
-                GeckoMotor.instalar(TIENDA.first().xpi)
-                // Sólo se quita el completo cuando la Lite ya está instalada; si la descarga
-                // falla, se queda el que había y se reintenta en el próximo arranque.
-                var intentos = 0
-                while (intentos < 30 && GeckoMotor.extensiones.value.none { it.id == "uBOLiteRedux@raymondhill.net" }) {
-                    delay(2_000)
-                    intentos++
-                }
-                if (GeckoMotor.extensiones.value.none { it.id == "uBOLiteRedux@raymondhill.net" }) return@LaunchedEffect
-                // Se vuelve a mirar la lista: la Lite ya llegó y puede que el completo no estuviera a la vista antes.
-                GeckoMotor.extensiones.value.firstOrNull { e ->
-                    "ublock" in e.nombre.lowercase() && !esLite(e)
-                }?.let { GeckoMotor.desinstalar(it.id) }
-            }
-            withContext(Dispatchers.IO) { db.settingDao().put(Setting("bloqueador_ligero2", "1")) }
+        GeckoMotor.arrancar(context)
+        // La lista de extensiones tarda en llegar (en la TV, hasta ~20 s tras abrir).
+        var esperas = 0
+        while (esperas < 40 && GeckoMotor.extensiones.value.none { it.id != "navegador@antena.tv" }) {
+            delay(1_500)
+            esperas++
         }
+        val lite = "uBOLiteRedux@raymondhill.net"
+        val pesados = listOf("uBlock0@raymondhill.net", "adguardadblocker@adguard.com", "jid1-MnnxcxisBPnSXQ@jetpack")
+        val (migrada, guardadas) = withContext(Dispatchers.IO) {
+            db.settingDao().get("migracion_bloqueador") to db.settingDao().get("ext_pendientes_quitar")
+        }
+        var pendientes = guardadas.orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+        var lista = GeckoMotor.extensiones.value
+        Bitacora.add(
+            LogKind.SISTEMA,
+            "Complementos al arrancar: [${lista.joinToString { "${it.nombre} (${it.id})" }}] · pendientes por quitar: ${pendientes.ifEmpty { setOf("ninguno") }.joinToString()}",
+        )
+        if (migrada == null) {
+            pendientes = pendientes + pesados
+            withContext(Dispatchers.IO) { db.settingDao().put(Setting("migracion_bloqueador", "1")) }
+        }
+        // Si hay algo viejo por quitar y la Lite no está, se instala (en cada arranque hasta lograrlo).
+        if (lista.none { it.id == lite } && lista.any { it.id in pendientes }) {
+            Bitacora.add(LogKind.SISTEMA, "Instalando uBlock Origin Lite (reemplaza a uBlock completo, AdGuard y Privacy Badger)")
+            GeckoMotor.instalar(TIENDA.first().xpi)
+        }
+        // Sólo se quita lo viejo cuando la Lite ya está (o no había bloqueador que sustituir).
+        var intentos = 0
+        while (intentos < 30 && lista.none { it.id == lite } && lista.any { it.id in pendientes }) {
+            delay(2_000)
+            lista = GeckoMotor.extensiones.value
+            intentos++
+        }
+        if (lista.any { it.id == lite } || lista.none { it.id in pesados }) {
+            lista.filter { it.id in pendientes }.forEach {
+                Bitacora.add(LogKind.SISTEMA, "Quitando el complemento ${it.nombre} (${it.id})")
+                GeckoMotor.desinstalar(it.id)
+            }
+        }
+        // Lo que ya no está en la lista se da por quitado.
+        val siguen = pendientes.filter { id -> lista.any { it.id == id } }.toSet()
+        withContext(Dispatchers.IO) { db.settingDao().put(Setting("ext_pendientes_quitar", siguen.joinToString(","))) }
     }
 
     // Fase 6 · bitácora: la primera entrada explica con qué se arrancó.
@@ -2740,6 +2745,13 @@ fun BrowserScreen() {
                             logEntries = Bitacora.entries()
                             overlay = Overlay.Bitacora
                         },
+                        onActualizar = {
+                            closeOverlay()
+                            scope.launch {
+                                toast("Descargando la actualización…")
+                                Actualizador.actualizar(context)
+                            }
+                        },
                         onSalir = { confirmarSalida = true; closeOverlay() },
                         version = version ?: "—",
                         actualizacion = when (val e = Actualizador.estado) {
@@ -2833,7 +2845,14 @@ fun BrowserScreen() {
                         iconos = bitmaps,
                         aviso = av,
                         onAlternar = { GeckoMotor.alternar(it) },
-                        onDesinstalar = { GeckoMotor.desinstalar(it.id) },
+                        onDesinstalar = { ext ->
+                            // Se anota como pendiente: si Gecko no llega a guardarlo, se repite al abrir.
+                            scope.launch(Dispatchers.IO) {
+                                val ya = db.settingDao().get("ext_pendientes_quitar").orEmpty().split(',').filter { it.isNotBlank() }
+                                db.settingDao().put(Setting("ext_pendientes_quitar", (ya + ext.id).distinct().joinToString(",")))
+                            }
+                            GeckoMotor.desinstalar(ext.id)
+                        },
                         onInstalar = { GeckoMotor.instalar(it) },
                         // La tienda se abre en una pestaña normal: el índice general
                         // o la ficha del addon que el usuario quiera revisar.

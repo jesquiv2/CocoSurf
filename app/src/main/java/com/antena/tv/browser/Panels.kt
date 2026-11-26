@@ -894,6 +894,7 @@ fun MenuDropdown(
     onAcerca: () -> Unit,
     onClaves: () -> Unit = {},
     onArchivos: () -> Unit = {},
+    onActualizar: () -> Unit = onAcerca,
     /** Cierra la aplicación. */
     onSalir: () -> Unit,
     version: String,
@@ -934,7 +935,9 @@ fun MenuDropdown(
         }
         MenuDivisor()
         if (actualizacion != null) {
-            MenuRow("Actualización $actualizacion", icon = ToolIcon.Download, value = "Instalar", onClick = onAcerca)
+            // Un solo paso: descarga y abre el instalador. (Antes llevaba a «Acerca de» y ahí había que
+            // pulsar «Descargar» y luego «Instalar».)
+            MenuRow("Actualizar a $actualizacion", icon = ToolIcon.Download, value = "Ahora", onClick = onActualizar)
         }
         // Mosaico de iconos (3 columnas); el nombre del que tiene el foco o el cursor se lee debajo.
         var etiqueta by remember { mutableStateOf("Favoritos") }
@@ -960,6 +963,7 @@ fun MenuDropdown(
                         icon = icono,
                         onClick = accion,
                         onEnfoque = { etiqueta = it },
+                        aviso = actualizacion != null && nombre.startsWith("Acerca"),
                         modifier = if (f == 0 && c == 0) Modifier.focusRequester(first) else Modifier,
                     )
                 }
@@ -988,6 +992,8 @@ private fun MenuMosaico(
     onClick: () -> Unit,
     onEnfoque: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Punto de aviso en la esquina (hay una actualización). */
+    aviso: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
     val fuente = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -1015,6 +1021,16 @@ private fun MenuMosaico(
         contentAlignment = Alignment.Center,
     ) {
         ToolIconGlyph(icon, if (focused || hover) Ambar else Fosforo, size = 28.dp)
+        if (aviso) {
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 7.dp, end = 7.dp)
+                    .size(11.dp)
+                    .clip(CircleShape)
+                    .background(Ambar),
+            )
+        }
     }
 }
 
@@ -1399,6 +1415,8 @@ fun AcercaPage(version: String, onClose: () -> Unit, onAbrir: (String) -> Unit =
     val primero = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { primero.requestFocus() } }
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // Al abrir «Acerca de» se mira si hay versión nueva (sin bloquear nada).
+    LaunchedEffect(Unit) { Actualizador.buscarAlAbrir(ctx) }
     val motor = runCatching { org.mozilla.geckoview.BuildConfig.MOZ_APP_VERSION }.getOrDefault("—")
     val principales = listOf(
         "Versión" to version,
@@ -1511,7 +1529,7 @@ private fun SeccionActualizacion() {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             when (e) {
                 is Actualizador.Estado.Nueva -> {
-                    RemoteChip(label = "Descargar e instalar", accent = true, onClick = { alcance.launch { Actualizador.descargar(ctx, e) } })
+                    RemoteChip(label = "Actualizar ahora", accent = true, onClick = { alcance.launch { Actualizador.actualizar(ctx) } })
                     RemoteChip(label = "Buscar de nuevo", onClick = { alcance.launch { Actualizador.buscar(ctx) } })
                 }
                 is Actualizador.Estado.Listo -> RemoteChip(label = "Instalar", accent = true, onClick = { Actualizador.instalar(ctx, e) })

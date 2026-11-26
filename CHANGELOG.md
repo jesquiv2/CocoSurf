@@ -1,5 +1,9 @@
 # Cambios
 
+## 1.11.0 — 2026-11-25
+- Primera página lenta, causa real (Bitácora de la TV): estaban cargando a la vez uBlock Origin completo, AdGuard y Privacy Badger, y Gecko retiene las páginas hasta que cada uno termina de iniciar. Las desinstalaciones que hacías no se guardaban (el sistema cerraba la app antes de que Gecko las escribiera) y volvían al abrir. Ahora cada desinstalación se anota como pendiente y se repite en cada arranque hasta que de verdad desaparece. Migración única: se instala uBlock Origin Lite y se quitan uBlock completo, AdGuard y Privacy Badger. La Bitácora anota «Complementos al arrancar» con lo que encontró y lo que quita.
+- Actualizaciones: al abrir el menú o «Acerca de» se busca versión nueva en segundo plano (sin bloquear nada). Si hay, el menú muestra «Actualizar a X» y «Acerca de» lleva un punto de aviso. «Actualizar ahora» descarga y abre el instalador de una vez (antes había que pulsar Descargar y luego Instalar).
+
 ## 1.10.5 — 2026-11-25
 - Primera página lenta: la Bitácora de la TV mostró que seguían corriendo uBlock Origin completo y la Lite a la vez. La Lite sí se instaló en la 1.10.3, pero el completo nunca se quitó (la lista de extensiones llegaba vacía cuando se decidía) y la migración quedó marcada como hecha, así que no se reintentaba. Ahora se usa una marca nueva, se espera a tener la lista, y si hay Lite y completo a la vez se quita el completo. La Bitácora anota «Bloqueador: extensiones […]» con lo que encontró.
 

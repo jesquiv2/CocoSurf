@@ -140,6 +140,33 @@ object Actualizador {
         return r
     }
 
+    private var ultimaBusqueda = 0L
+
+    /**
+     * Para cuando se abre el menú o «Acerca de»: mira si hay versión nueva sin estorbar. No repite si
+     * hay una búsqueda o descarga en curso, si ya sabe que hay versión nueva, o si miró hace menos de 30 s.
+     */
+    suspend fun buscarAlAbrir(c: Context) {
+        val e = estado
+        if (e is Estado.Buscando || e is Estado.Descargando || e is Estado.Nueva || e is Estado.Listo) return
+        val ahora = android.os.SystemClock.elapsedRealtime()
+        if (ahora - ultimaBusqueda < 30_000) return
+        ultimaBusqueda = ahora
+        buscar(c)
+    }
+
+    /** Un solo paso: descarga si hace falta y abre el instalador en cuanto el archivo está listo. */
+    suspend fun actualizar(c: Context) {
+        when (val e = estado) {
+            is Estado.Nueva -> {
+                descargar(c, e)
+                (estado as? Estado.Listo)?.let { instalar(c, it) }
+            }
+            is Estado.Listo -> instalar(c, e)
+            else -> Unit
+        }
+    }
+
     /** Reintentos seguidos (sin avanzar) antes de rendirse; la descarga cortada se retoma donde quedó. */
     private const val REINTENTOS = 30
 
