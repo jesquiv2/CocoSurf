@@ -58,6 +58,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.zIndex
+import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -2416,11 +2418,17 @@ fun BrowserScreen() {
                             Modifier.align(Alignment.TopEnd).size(22.dp),
                             grosor = 3.dp,
                         )
+                        // Siempre por encima del borde del botón (también con el cursor o el foco encima) y
+                        // con un aro del color de la barra, para que el borde no se meta en el círculo.
                         is Actualizador.Estado.Nueva, is Actualizador.Estado.Listo -> Box(
                             Modifier
                                 .align(Alignment.TopEnd)
-                                .padding(top = 2.dp, end = 2.dp)
-                                .size(11.dp)
+                                .offset(x = 3.dp, y = (-3).dp)
+                                .zIndex(10f)
+                                .size(13.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(Noche)
+                                .padding(2.dp)
                                 .clip(androidx.compose.foundation.shape.CircleShape)
                                 .background(Ambar),
                         )

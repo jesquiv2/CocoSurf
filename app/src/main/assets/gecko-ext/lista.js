@@ -12,6 +12,10 @@
   var CADA_MS = 24 * 3600 * 1000; // renovar si la copia tiene más de un día
   var REVISAR_MS = 3 * 3600 * 1000; // cada cuánto se mira si toca renovar
 
+  // Cargadores de publicidad que ninguna lista pública trae todavía (los botones flotantes con check,
+  // «Skip Ad», el regalo…). Se suman a la lista descargada.
+  var PROPIOS = ["eruptcapone.com", "agl003.com"];
+
   var dominios = new Set();
   var estado = "cargando"; // cargando | lista | error
   var detalle = "";
@@ -113,6 +117,7 @@
       texto = null;
       if (nuevo.size < 1000) throw new Error("la lista bajó incompleta (" + nuevo.size + " dominios)");
       var primera = dominios.size === 0;
+      for (var p = 0; p < PROPIOS.length; p++) nuevo.add(PROPIOS[p]);
       dominios = nuevo;
       fecha = Date.now();
       estado = "lista";
@@ -134,6 +139,7 @@
         var s = new Set();
         var partes = g.lista.split("\n");
         for (var i = 0; i < partes.length; i++) if (partes[i]) s.add(partes[i]);
+        for (var q = 0; q < PROPIOS.length; q++) s.add(PROPIOS[q]);
         dominios = s;
         fecha = g.listaFecha || 0;
         estado = "lista";

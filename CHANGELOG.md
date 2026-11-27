@@ -1,5 +1,10 @@
 # Cambios
 
+## 2.2.1 — 2026-11-27
+- El punto de aviso de actualización del botón del menú ya no choca con el borde del botón al poner el cursor encima: va por encima del borde y con un aro del color de la barra.
+- Ya no sale el chip «Extensión instalada: Coco Surf v1.11» al actualizar: la extensión interna de la app se actualiza sola y no es un aviso para ti.
+- La lista de anuncios suma dos cargadores de publicidad que ninguna lista pública trae (`eruptcapone.com`, `agl003.com`): eran los que dibujaban los botones flotantes con check y «Skip Ad» que quedaban visibles aunque la imagen del anuncio estuviera bloqueada.
+
 ## 2.2.0 — 2026-11-27
 - Lista de anuncios propia de la app (HaGeZi «Pro Mini», la versión para aparatos con poca memoria: ~95 mil dominios). Bloquea por red la publicidad, el rastreo y las estafas con el bloqueador que escojas, o sin ninguno, y no depende de uBlock. Se baja sola la primera vez, se renueva sola cada día y las páginas abiertas se recargan al activarse. En Configuración → General → «Bloqueo de anuncios» se ve la lista, su estado, cuántos dominios tiene, cuándo se actualizó y cuántos bloqueó. Hallazgo en la TV: uBlock funciona, pero sus listas no traían los dominios de los banners de 1XBET de JK Anime; esta lista sí.
 - La lista no frena los anuncios que abren pestañas nuevas ni las redirecciones (eso lo hacen las protecciones de uBlock); por eso conviene tener uBlock Origin además.

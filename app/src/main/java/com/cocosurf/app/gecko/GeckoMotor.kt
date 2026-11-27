@@ -500,6 +500,11 @@ object GeckoMotor {
         bitacora: String? = null,
         kind: LogKind = LogKind.SISTEMA,
     ): Boolean {
+        // La extensión interna de la app se instala o actualiza sola: no es un aviso para el usuario.
+        if (id == EXT_INTERNA) {
+            if (bitacora != null) Bitacora.add(kind, bitacora)
+            return false
+        }
         val clave = (id ?: "?") to estado
         if (anunciado == clave) return false
         anunciado = clave
