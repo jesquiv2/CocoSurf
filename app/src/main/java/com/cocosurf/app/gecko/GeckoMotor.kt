@@ -178,26 +178,22 @@ object GeckoMotor {
      */
     fun cuandoBloqueadorListo(maxMs: Long = 40_000, accion: () -> Unit, tarde: () -> Unit) {
         val h = Handler(Looper.getMainLooper())
-        val limite = android.os.SystemClock.elapsedRealtime() + maxMs
+        val ahora = android.os.SystemClock.elapsedRealtime()
+        // La lista propia (1–3 s, o ya guardada) es lo único que se espera, y como mucho 4 s: la página
+        // carga enseguida filtrada por ella. uBlock tarda ~13 s en arrancar en la TV; cuando llega, la
+        // página se recarga una vez (`tarde`) para sumar su filtro de elementos.
+        val limite = ahora + minOf(maxMs, 4_000L)
         lateinit var paso: Runnable
         paso = Runnable {
             when {
-                // Las páginas esperan a la lista de anuncios propia (la baja o la lee en 1–3 s)…
-                !listaDijoEstado && android.os.SystemClock.elapsedRealtime() < limite -> h.postDelayed(paso, 250)
+                !listaDijoEstado && android.os.SystemClock.elapsedRealtime() < limite -> h.postDelayed(paso, 100)
                 bloqueadorListo -> accion()
-                sinBloqueadorQueEsperar() -> {
-                    // Todavía no hay bloqueador (p. ej. se está instalando): la página carga, y si luego
-                    // llega uno, se recarga para que ya pase por él.
+                else -> {
                     accion()
+                    // El bloqueador aún no está listo (arrancando o instalándose): al llegar, se recarga.
                     if (cargadasSinFiltro.size >= 50) cargadasSinFiltro.removeAt(0)
                     cargadasSinFiltro += tarde
                 }
-                android.os.SystemClock.elapsedRealtime() >= limite -> {
-                    Bitacora.add(LogKind.SISTEMA, "El bloqueador no estuvo listo en ${maxMs / 1000} s: la página se carga y se recargará cuando esté")
-                    accion()
-                    cargadasSinFiltro += tarde
-                }
-                else -> h.postDelayed(paso, 250)
             }
         }
         h.post(paso)

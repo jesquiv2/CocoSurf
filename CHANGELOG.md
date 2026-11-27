@@ -1,5 +1,8 @@
 # Cambios
 
+## 2.3.0 — 2026-11-27
+- Las páginas cargan más rápido: ya no esperan a que uBlock termine de arrancar (en la TV tarda unos 13 s). Esperan solo a la lista de anuncios propia (como mucho 4 s) y cargan filtradas por ella; cuando uBlock está listo, la página se recarga una vez para sumar su filtro. A cambio, la primera carga tras abrir la app puede mostrar un momento algo que solo uBlock bloquea.
+
 ## 2.2.1 — 2026-11-27
 - El punto de aviso de actualización del botón del menú ya no choca con el borde del botón al poner el cursor encima: va por encima del borde y con un aro del color de la barra.
 - Ya no sale el chip «Extensión instalada: Coco Surf v1.11» al actualizar: la extensión interna de la app se actualiza sola y no es un aviso para ti.
