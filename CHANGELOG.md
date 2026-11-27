@@ -1,5 +1,11 @@
 # Cambios
 
+## 2.1.0 — 2026-11-27
+- La actualización se hace de principio a fin con un solo toque. La fila del menú ocupa una sola línea («Actualizar a X»); al tocarla muestra un anillo con el porcentaje, y si cierras el menú el botón del menú parpadea con su anillo mientras descarga. Al terminar abre el instalador sola (la primera vez pide el permiso de «apps desconocidas» y, al volver, sigue sin que repitas nada). Android siempre pide una confirmación final en el instalador: eso no se puede saltar.
+- El bloqueador responde a lo que haces: si una página cargó antes de que hubiera bloqueador (instalación nueva, o se estaba instalando), se recarga sola unos segundos después de que llega, esperando a que pueda filtrar (si uBlock marca «!», reintenta). Y al instalar, activar, desactivar o quitar un bloqueador desde Complementos, las pestañas abiertas se recargan solas. Probado en el emulador con anuncios reales de JK Anime.
+- Resultado de pruebas por bloqueador en JK Anime: uBlock Origin bloquea los anuncios (banner de apuestas y ventana flotante); AdGuard AdBlocker y Privacy Badger, solos, NO los bloquean.
+- Los respaldos ahora se guardan también en Descargas/CocoSurf (con el permiso de archivos), fuera de la carpeta de la app, para que sobrevivan a una reinstalación o a un cambio de identificador. Importar lista los de las dos carpetas.
+
 ## 2.0.0 — 2026-11-27
 - Arreglo de fondo de los anuncios: las pestañas que la app restaura al abrir (o tras actualizar) cargaban antes de que el bloqueador terminara de arrancar y se quedaban sin filtrar hasta cerrarlas y volver a abrirlas. Ahora toda carga espera a que el bloqueador esté listo (si no hay ninguno activo no espera; si tarda más de 40 s carga igual y recarga la página en cuanto llega). Sirve con el bloqueador que escojas.
 - Se cambia el nombre interno anterior en todo el proyecto: paquete, clases, archivos, extensión interna, base de datos y textos. El identificador de la app cambia a `com.cocosurf.app`, así que en la TV se instala como una app nueva (desinstala la anterior; los datos guardados no pasan solos: usa «Respaldo» antes).

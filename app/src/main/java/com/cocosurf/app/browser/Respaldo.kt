@@ -51,11 +51,24 @@ object Respaldo {
 
     fun carpeta(c: Context): File = c.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: c.filesDir
 
-    /** Respaldos que hay en la carpeta de Descargas de la app, el más reciente primero. */
+    /**
+     * Descargas/CocoSurf, en el almacenamiento compartido: sobrevive a actualizaciones, a un cambio de
+     * identificador de la app y a desinstalarla (la carpeta propia de la app se borra al desinstalar y
+     * otra app no puede leerla). Sólo existe si la app tiene el permiso de archivos; si no, es null.
+     */
+    fun carpetaPublica(): File? = runCatching {
+        File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "CocoSurf")
+            .also { it.mkdirs() }
+    }.getOrNull()?.takeIf { it.isDirectory && it.canWrite() }
+
+    fun enCarpetaPublica(f: File): Boolean = f.parentFile?.name == "CocoSurf"
+
+    /** Respaldos de Descargas/CocoSurf y de la carpeta propia de la app, el más reciente primero. */
     fun archivos(c: Context): List<File> =
-        carpeta(c).listFiles { f -> f.isFile && f.name.startsWith(PREFIJO) && f.extension == "json" }
-            ?.sortedByDescending { it.lastModified() }
-            .orEmpty()
+        listOfNotNull(carpetaPublica(), carpeta(c))
+            .flatMap { d -> d.listFiles { f -> f.isFile && f.name.startsWith(PREFIJO) && f.extension == "json" }?.toList().orEmpty() }
+            .distinctBy { it.name }
+            .sortedByDescending { it.lastModified() }
 
     /** Escribe el respaldo y lo anota en la lista de descargas. Llamar fuera del hilo principal. */
     fun exportar(c: Context, db: CocoSurfDatabase, version: String, conClaves: Boolean): File {
@@ -104,8 +117,13 @@ object Respaldo {
         }
 
         val fecha = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-        val archivo = File(carpeta(c), "$PREFIJO$fecha.json")
-        archivo.writeText(raiz.toString())
+        // Primero en la carpeta compartida (si hay permiso); además una copia dentro de la app.
+        val texto = raiz.toString()
+        val copiaPropia = File(carpeta(c), "$PREFIJO$fecha.json").also { it.writeText(texto) }
+        val archivo = carpetaPublica()
+            ?.let { File(it, "$PREFIJO$fecha.json") }
+            ?.takeIf { f -> runCatching { f.writeText(texto) }.isSuccess }
+            ?: copiaPropia
         db.downloadDao().insert(
             DownloadEntry(UUID.randomUUID().toString(), -1L, "file://" + archivo.absolutePath, archivo.name, System.currentTimeMillis()),
         )

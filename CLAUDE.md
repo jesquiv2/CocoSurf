@@ -1,7 +1,7 @@
 # Coco Surf — reglas del proyecto
 
 ## Versionado (obligatorio)
-- Versión actual: **2.0.0** (`versionName`/`versionCode` en `app/build.gradle.kts`).
+- Versión actual: **2.1.0** (`versionName`/`versionCode` en `app/build.gradle.kts`).
 - Cada cambio que se entregue al usuario sube la versión **antes de compilar**:
   - correcciones pequeñas → 1.0.x (patch),
   - funciones nuevas → 1.x.0 (minor),
@@ -16,6 +16,12 @@
 
 - Para tiendas: `.\gradlew.bat bundlePlayRelease` → `CocoSurf-<versión>-play.aab` (con la clave de `keystore.properties`; nunca se sube a git).
 
+## Prueba obligatoria de bloqueadores de anuncios (siempre que se toque algo relacionado)
+Aplica a cualquier cambio en complementos/extensiones (`GeckoMotor`, `WebTab`, `Actualizador`, tienda de Complementos, restauración de pestañas, arranque del motor, `BrowserScreen` al cargar páginas…). Antes de entregar:
+1. **Ver los anuncios primero**: en el emulador (el AVD que haya instalado; APK con `-Pabi=x86_64`), instalación limpia, abrir `https://jkanime.net/` **antes** de que haya bloqueador y comprobar que salen anuncios (banner de apuestas y ventana flotante con X). Si no salen, la prueba no vale.
+2. **Probar CADA bloqueador por separado**, con sólo ése activo: uBlock Origin, AdGuard AdBlocker y Privacy Badger (los de la tienda de Complementos; si se añade otro, también). Para cada uno: abrir jkanime, mover/tocar/desplazar como una persona (los anuncios sólo nacen con interacción), y comprobar que NO hay banners ni ventanas emergentes y que el contador del icono es mayor que 0 (si marca «!» no está filtrando). Anotar el resultado de cada uno en la respuesta, incluido el que no logre bloquear.
+3. **Casos de arranque**: (a) cerrar y reabrir la app con la pestaña abierta (restaurada, debe salir filtrada); (b) abrir la página antes de que el bloqueador termine de instalarse (debe recargarse sola y quedar filtrada); (c) instalar/desinstalar/cambiar de bloqueador desde Complementos y comprobar que la pestaña abierta responde.
+4. Nunca decir «no salen anuncios» a partir de una prueba sin anuncios de base: los de Costa Rica (`crc`) son del mismo sitio y salen con la sesión normal.
 ## Notas
 - UI en español, sólo tema oscuro, acento elegible por el usuario.
 - Dispositivo objetivo: TV Xiaomi ~1.7 GB RAM (ARMv8, ABI de 32 bits): cuidar la memoria.

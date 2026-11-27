@@ -440,8 +440,25 @@ class WebTab(
         }
         GeckoMotor.cuandoBloqueadorListo(
             accion = { if (!cerrada && numero == cargaVigente) runCatching(accion) },
-            tarde = { if (!cerrada && numero == cargaVigente) runCatching { session.reload() } },
+            tarde = { recargarCuandoFiltre(numero, 0) },
         )
+    }
+
+    /**
+     * El bloqueador llegó después de que la página cargó. Recargarla de inmediato no sirve (él aún no
+     * está listo para esta pestaña y marca «!»): se espera unos segundos, se recarga, y si sigue sin
+     * poder filtrar se reintenta (hasta 4 veces).
+     */
+    private fun recargarCuandoFiltre(numero: Int, intento: Int) {
+        view.postDelayed({
+            if (cerrada || numero != cargaVigente) return@postDelayed
+            runCatching { session.reload() }
+            view.postDelayed({
+                if (!cerrada && numero == cargaVigente && intento < 3 && GeckoMotor.insigniaBloqueo(session) == "!") {
+                    recargarCuandoFiltre(numero, intento + 1)
+                }
+            }, 12_000)
+        }, if (intento == 0) 6_000L else 3_000L)
     }
 
     fun load(newUrl: String) {

@@ -81,8 +81,45 @@ object GeckoMotor {
     /** Páginas que cargaron sin esperar al bloqueador (se recargan en cuanto esté listo). */
     private val cargadasSinFiltro = mutableListOf<() -> Unit>()
 
+    /**
+     * Texto del contador del bloqueador en esa pestaña. uBlock muestra «!» cuando todavía no puede
+     * filtrarla (la página cargó antes de que él estuviera listo): hay que recargarla.
+     */
+    fun insigniaBloqueo(session: GeckoSession): String? =
+        accionesPorSesion[session]?.entries
+            ?.firstOrNull { esBloqueador(it.key, it.value.nombre) }
+            ?.value?.badge
+
+    /**
+     * Se instaló, activó, desactivó o quitó un bloqueador mientras ya había páginas abiertas: esas
+     * páginas siguen como cargaron (con o sin filtro) hasta recargarse, y la app «no respondía» a lo
+     * que se hacía en Complementos. Se recargan todas las pestañas tras unos segundos (el bloqueador
+     * necesita ese tiempo para registrar la pestaña) y, si el bloqueador activo sigue marcando «!»,
+     * se reintenta una vez más. (Si aún no había ningún bloqueador listo, ya lo cubre `cargadasSinFiltro`.)
+     */
+    private fun cambioDeBloqueador(extension: WebExtension) {
+        if (extension.id == EXT_INTERNA || !esBloqueador(extension.id, extension.metaData.name)) return
+        if (!bloqueadorListo) return
+        val h = Handler(Looper.getMainLooper())
+        Bitacora.add(LogKind.SISTEMA, "Cambió un bloqueador (${extension.metaData.name ?: extension.id}): se recargan las páginas abiertas")
+        h.postDelayed({
+            val vivas = sesiones.toList().filter { it !== sesionCalentamiento }
+            vivas.forEach { runCatching { it.reload() } }
+            h.postDelayed({
+                vivas.filter { insigniaBloqueo(it) == "!" }.forEach { runCatching { it.reload() } }
+            }, 12_000)
+        }, 6_000)
+    }
+
+    /** ¿Es un bloqueador de anuncios? (cualquiera que el usuario escoja: uBlock, AdGuard, AdBlock, Privacy Badger…). */
+    private fun esBloqueador(id: String, nombre: String?): Boolean {
+        val t = ((nombre ?: "") + " " + id).lowercase()
+        if ("sponsor" in t) return false // SponsorBlock salta partes de videos, no bloquea anuncios de páginas
+        return listOf("ublock", "ubo", "adguard", "adblock", "badger", "ghostery", "block").any { it in t }
+    }
+
     private fun sinBloqueadorQueEsperar() =
-        listaCargada && _extensiones.value.none { it.id != EXT_INTERNA && it.activa }
+        listaCargada && _extensiones.value.none { it.id != EXT_INTERNA && it.activa && esBloqueador(it.id, it.nombre) }
 
     /**
      * Una página que carga ANTES de que el bloqueador termine de arrancar queda sin filtrar (sin
@@ -97,7 +134,14 @@ object GeckoMotor {
         lateinit var paso: Runnable
         paso = Runnable {
             when {
-                bloqueadorListo || sinBloqueadorQueEsperar() -> accion()
+                bloqueadorListo -> accion()
+                sinBloqueadorQueEsperar() -> {
+                    // Todavía no hay bloqueador (p. ej. se está instalando): la página carga, y si luego
+                    // llega uno, se recarga para que ya pase por él.
+                    accion()
+                    if (cargadasSinFiltro.size >= 50) cargadasSinFiltro.removeAt(0)
+                    cargadasSinFiltro += tarde
+                }
                 android.os.SystemClock.elapsedRealtime() >= limite -> {
                     Bitacora.add(LogKind.SISTEMA, "El bloqueador no estuvo listo en ${maxMs / 1000} s: la página se carga y se recargará cuando esté")
                     accion()
@@ -354,7 +398,7 @@ object GeckoMotor {
             return
         }
         accionesObj += extension.id to action
-        if (!bloqueadorListo && extension.id != EXT_INTERNA) {
+        if (!bloqueadorListo && extension.id != EXT_INTERNA && esBloqueador(extension.id, extension.metaData.name)) {
             bloqueadorListo = true
             if (cargadasSinFiltro.isNotEmpty()) {
                 val pendientes = cargadasSinFiltro.toList()
@@ -429,6 +473,7 @@ object GeckoMotor {
      */
     private val addonManagerDelegate = object : WebExtensionController.AddonManagerDelegate {
         override fun onInstalled(extension: WebExtension) {
+            cambioDeBloqueador(extension)
             val nombre = extension.metaData.name ?: extension.id
             val version = extension.metaData.version
             Log.i(TAG, "gecko: OnInstalled ${extension.id} v$version")
@@ -464,6 +509,7 @@ object GeckoMotor {
         }
 
         override fun onUninstalled(extension: WebExtension) {
+            cambioDeBloqueador(extension)
             val nombre = extension.metaData.name ?: extension.id
             Log.i(TAG, "gecko: OnUninstalled ${extension.id}")
             anunciar(
@@ -476,6 +522,7 @@ object GeckoMotor {
         }
 
         override fun onEnabled(extension: WebExtension) {
+            cambioDeBloqueador(extension)
             Log.i(TAG, "gecko: OnEnabled ${extension.id}")
             anunciar(
                 extension.id,
@@ -486,6 +533,7 @@ object GeckoMotor {
         }
 
         override fun onDisabled(extension: WebExtension) {
+            cambioDeBloqueador(extension)
             Log.i(TAG, "gecko: OnDisabled ${extension.id}")
             anunciar(
                 extension.id,

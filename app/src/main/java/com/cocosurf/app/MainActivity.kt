@@ -45,6 +45,16 @@ class MainActivity : ComponentActivity() {
     private var okDownAt = 0L
     private var longOkFired = false
 
+    override fun onResume() {
+        super.onResume()
+        com.cocosurf.app.browser.Actualizador.alVolver(this)
+    }
+
+    override fun onPause() {
+        com.cocosurf.app.browser.Actualizador.alIrseDePrimerPlano()
+        super.onPause()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Fase 6 · bitácora: recupera el cierre anterior y captura errores internos.

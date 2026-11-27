@@ -831,6 +831,10 @@ fun MenuRow(
     peligro: Boolean = false,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
+    /** Si se indica, el texto se corta en esas líneas (la fila de la actualización es de una sola). */
+    lineas: Int = Int.MAX_VALUE,
+    /** Porcentaje 0–100 de una tarea en curso: en lugar del icono se dibuja un anillo que se llena. */
+    progreso: Int? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val fuente = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -858,7 +862,10 @@ fun MenuRow(
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (icon != null) {
+        if (progreso != null) {
+            AnilloProgreso(progreso, Modifier.size(24.dp))
+            Spacer(Modifier.width(14.dp))
+        } else if (icon != null) {
             ToolIconGlyph(
                 icon,
                 if (focused) acento else if (peligro) Alerta else FosforoTenue,
@@ -870,11 +877,30 @@ fun MenuRow(
             label,
             style = CocoSurfType.body,
             color = if (focused) acento else if (peligro) Alerta else Fosforo,
+            maxLines = lineas,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
         )
         if (value != null) {
             Text(value, style = CocoSurfType.monoSmall, color = FosforoTenue, maxLines = 1)
         }
+    }
+}
+
+/** Anillo de progreso (0–100): pista tenue y arco ámbar que crece desde arriba. */
+@Composable
+fun AnilloProgreso(pct: Int, modifier: Modifier = Modifier, grosor: androidx.compose.ui.unit.Dp = 3.dp) {
+    androidx.compose.foundation.Canvas(modifier) {
+        val g = grosor.toPx()
+        val lado = size.minDimension - g
+        val origen = androidx.compose.ui.geometry.Offset(g / 2f, g / 2f)
+        val tam = androidx.compose.ui.geometry.Size(lado, lado)
+        val trazo = androidx.compose.ui.graphics.drawscope.Stroke(g)
+        drawArc(Fosforo.copy(alpha = 0.18f), 0f, 360f, false, origen, tam, style = trazo)
+        drawArc(
+            Ambar, -90f, 360f * pct.coerceIn(0, 100) / 100f, false, origen, tam,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(g, cap = androidx.compose.ui.graphics.StrokeCap.Round),
+        )
     }
 }
 
@@ -935,9 +961,15 @@ fun MenuDropdown(
         }
         MenuDivisor()
         if (actualizacion != null) {
-            // Un solo paso: descarga y abre el instalador. (Antes llevaba a «Acerca de» y ahí había que
-            // pulsar «Descargar» y luego «Instalar».)
-            MenuRow("Actualizar a $actualizacion", icon = ToolIcon.Download, value = "Ahora", onClick = onActualizar)
+            // Un solo paso y una sola línea: al tocarla descarga (con anillo y porcentaje) y abre el instalador.
+            val e = Actualizador.estado
+            val pct = (e as? Actualizador.Estado.Descargando)?.pct
+            val texto = when (e) {
+                is Actualizador.Estado.Descargando -> "Descargando $pct %"
+                is Actualizador.Estado.Listo -> "Instalar $actualizacion"
+                else -> "Actualizar a $actualizacion"
+            }
+            MenuRow(texto, icon = ToolIcon.Download, lineas = 1, progreso = pct, onClick = { if (pct == null) onActualizar() })
         }
         // Mosaico de iconos (3 columnas); el nombre del que tiene el foco o el cursor se lee debajo.
         var etiqueta by remember { mutableStateOf("Favoritos") }

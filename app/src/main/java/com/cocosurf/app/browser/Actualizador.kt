@@ -157,16 +157,42 @@ object Actualizador {
         buscar(c)
     }
 
+    /** La app está a la vista: Android sólo deja abrir el instalador desde una app visible. */
+    @Volatile
+    var enPrimerPlano = true
+
+    /** Hay que abrir el instalador en cuanto la app vuelva a verse (terminó la descarga estando fuera, o se fue a dar el permiso). */
+    @Volatile
+    private var instalarAlVolver = false
+
     /** Un solo paso: descarga si hace falta y abre el instalador en cuanto el archivo está listo. */
     suspend fun actualizar(c: Context) {
         when (val e = estado) {
             is Estado.Nueva -> {
                 descargar(c, e)
-                (estado as? Estado.Listo)?.let { instalar(c, it) }
+                (estado as? Estado.Listo)?.let { instalarOEsperar(c, it) }
             }
-            is Estado.Listo -> instalar(c, e)
+            is Estado.Listo -> instalarOEsperar(c, e)
             else -> Unit
         }
+    }
+
+    private fun instalarOEsperar(c: Context, listo: Estado.Listo) {
+        if (enPrimerPlano) instalar(c, listo) else instalarAlVolver = true
+    }
+
+    /** La app volvió a verse: si había una instalación pendiente, se abre ahora. */
+    fun alVolver(c: Context) {
+        enPrimerPlano = true
+        val listo = estado as? Estado.Listo ?: return
+        if (instalarAlVolver && c.packageManager.canRequestPackageInstalls()) {
+            instalarAlVolver = false
+            instalar(c, listo)
+        }
+    }
+
+    fun alIrseDePrimerPlano() {
+        enPrimerPlano = false
     }
 
     /** Reintentos seguidos (sin avanzar) antes de rendirse; la descarga cortada se retoma donde quedó. */
@@ -260,6 +286,8 @@ object Actualizador {
     fun instalar(c: Context, listo: Estado.Listo) {
         runCatching {
             if (!c.packageManager.canRequestPackageInstalls()) {
+                // Se manda a dar el permiso una sola vez; al volver, la instalación sigue sola.
+                instalarAlVolver = true
                 c.startActivity(
                     Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + c.packageName))
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),

@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
@@ -1576,7 +1577,10 @@ fun BrowserScreen() {
                 if (archivo == null) {
                     toast("No se pudo crear el respaldo")
                 } else {
-                    toast("Respaldo guardado en Descargas: ${archivo.name}")
+                    toast(
+                        if (Respaldo.enCarpetaPublica(archivo)) "Respaldo guardado en Descargas/CocoSurf: ${archivo.name}"
+                        else "Respaldo guardado SOLO dentro de la app (${archivo.name}). Da el permiso de archivos (Menú → Archivos) para guardarlo en Descargas/CocoSurf, donde sobrevive a una reinstalación",
+                    )
                     compartirArchivo(context, archivo)
                 }
             }
@@ -1598,7 +1602,7 @@ fun BrowserScreen() {
         }
         Acciones.mostrar(
             "Importar respaldo",
-            if (archivos.isEmpty()) "No hay respaldos en la carpeta de Descargas" else "Respaldos en Descargas",
+            if (archivos.isEmpty()) "No hay respaldos en Descargas/CocoSurf ni dentro de la app" else "Respaldos guardados",
             items,
         )
     }
@@ -2381,7 +2385,21 @@ fun BrowserScreen() {
                 Spacer(Modifier.width(6.dp))
                 // Menú desplegable (siempre al final de la fila de la barra): solo el icono.
                 // Abierto → píldora blanca (sin ámbar) que indica que el menú está desplegado.
-                Box(Modifier.focusRequester(menuFr)) {
+                // Descargando una actualización: todo el botón del menú parpadea (también con el menú cerrado).
+                val bajandoAct = Actualizador.estado as? Actualizador.Estado.Descargando
+                val parpadeoAct = if (bajandoAct != null) {
+                    val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "act")
+                    val a by t.animateFloat(
+                        0.35f, 1f,
+                        androidx.compose.animation.core.infiniteRepeatable(
+                            androidx.compose.animation.core.tween(650),
+                            androidx.compose.animation.core.RepeatMode.Reverse,
+                        ),
+                        label = "parpadeo",
+                    )
+                    a
+                } else 1f
+                Box(Modifier.focusRequester(menuFr).alpha(parpadeoAct)) {
                     RemoteChip(
                         label = "",
                         icon = ToolIcon.Menu,
@@ -2391,8 +2409,14 @@ fun BrowserScreen() {
                         onClick = { overlay = if (overlay is Overlay.Menu) null else Overlay.Menu },
                     )
                     // Punto de aviso: hay una versión nueva (o descargada y sin instalar).
-                    if (Actualizador.estado.let { it is Actualizador.Estado.Nueva || it is Actualizador.Estado.Listo || it is Actualizador.Estado.Descargando }) {
-                        Box(
+                    // Mientras se descarga, el punto pasa a ser un anillo que se llena y parpadea.
+                    when (val act = Actualizador.estado) {
+                        is Actualizador.Estado.Descargando -> AnilloProgreso(
+                            act.pct,
+                            Modifier.align(Alignment.TopEnd).size(22.dp),
+                            grosor = 3.dp,
+                        )
+                        is Actualizador.Estado.Nueva, is Actualizador.Estado.Listo -> Box(
                             Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(top = 2.dp, end = 2.dp)
@@ -2400,6 +2424,7 @@ fun BrowserScreen() {
                                 .clip(androidx.compose.foundation.shape.CircleShape)
                                 .background(Ambar),
                         )
+                        else -> Unit
                     }
                 }
             }
@@ -2758,10 +2783,11 @@ fun BrowserScreen() {
                             overlay = Overlay.Bitacora
                         },
                         onActualizar = {
-                            closeOverlay()
+                            // El menú se queda abierto para ver el avance; si se cierra, el botón del menú
+                            // sigue parpadeando con su anillo y la instalación continúa sola.
                             scope.launch {
-                                toast("Descargando la actualización…")
                                 Actualizador.actualizar(context)
+                                (Actualizador.estado as? Actualizador.Estado.Error)?.let { toast(it.motivo) }
                             }
                         },
                         onSalir = { confirmarSalida = true; closeOverlay() },
