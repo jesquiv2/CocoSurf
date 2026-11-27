@@ -6,14 +6,14 @@ plugins {
 }
 
 android {
-    namespace = "com.antena.tv.spike"
+    namespace = "com.cocosurf.app.spike"
     // Última GeckoView compatible con el toolchain del proyecto (Kotlin 2.1.20,
     // AGP 8.11.1, compileSdk 35): a partir de la 142 exige Kotlin ≥2.2 y de la
     // 154 androidx.core 1.19 → AGP 9.1 + SDK 37.
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.antena.tv.spike"
+        applicationId = "com.cocosurf.app.spike"
         // GeckoView moderno exige minSdk 26 (PLAN §18.4: subir de 24 a 26+).
         minSdk = 26
         targetSdk = 34

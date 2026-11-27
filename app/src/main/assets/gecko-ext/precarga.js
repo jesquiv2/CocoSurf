@@ -1,4 +1,4 @@
-// Extensión interna de Antena · precarga de video por trozos (HLS).
+// Extensión interna de CocoSurf · precarga de video por trozos (HLS).
 //
 // Los reproductores HLS (hls.js) sólo guardan ~30 s por delante y dejan de bajar al llenar ese
 // colchón; si el servidor se atasca un momento, el video se queda «esperando». Este script lee la
@@ -8,8 +8,8 @@
 //
 // Corre en todos los marcos (el reproductor casi siempre va en un iframe).
 (function () {
-  if (window.__antenaPrecarga) return;
-  window.__antenaPrecarga = true;
+  if (window.__cocosurfPrecarga) return;
+  window.__cocosurfPrecarga = true;
 
   var VENTANA = 60; // s de video que se mantienen bajados por delante de lo que se está viendo
   var VENTANA_MALA = 120; // ídem cuando el servidor da problemas
@@ -30,7 +30,7 @@
 
   function avisar(texto) {
     try {
-      browser.runtime.sendNativeMessage("antena", { tag: "precarga", msg: texto });
+      browser.runtime.sendNativeMessage("cocosurf", { tag: "precarga", msg: texto });
     } catch (e) {
       /* el canal aún no está listo */
     }
@@ -349,7 +349,7 @@
     if (!host || host.tagName === "VIDEO") host = document.body || document.documentElement;
     if (!panel) {
       var css = document.createElement("style");
-      css.textContent = "@keyframes antena-pulso{0%,100%{transform:scale(.75);opacity:.45}50%{transform:scale(1.15);opacity:1}}";
+      css.textContent = "@keyframes cocosurf-pulso{0%,100%{transform:scale(.75);opacity:.45}50%{transform:scale(1.15);opacity:1}}";
       (document.head || host).appendChild(css);
       panel = document.createElement("div");
       panel.style.cssText =
@@ -358,7 +358,7 @@
       var punto = document.createElement("div");
       punto.style.cssText =
         "width:18px;height:18px;border-radius:50%;background:#ffb020;" +
-        "box-shadow:0 0 10px 2px rgba(255,176,32,.7);animation:antena-pulso 1s ease-in-out infinite";
+        "box-shadow:0 0 10px 2px rgba(255,176,32,.7);animation:cocosurf-pulso 1s ease-in-out infinite";
       rotulo = document.createElement("div");
       rotulo.style.cssText = "font-size:12px;color:#fff;background:rgba(0,0,0,.6);padding:3px 7px;border-radius:8px";
       panel.appendChild(rotulo);
@@ -455,7 +455,7 @@
       else break;
     }
     try {
-      browser.runtime.sendNativeMessage("antena", {
+      browser.runtime.sendNativeMessage("cocosurf", {
         tag: "precargaestado",
         host: servidor,
         colchon: Math.round(adelante(v) * 10) / 10,

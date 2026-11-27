@@ -1,8 +1,8 @@
 // Spike M5 · content script: prueba visual + informes por native messaging.
 (function () {
-  if (document.getElementById("antena-ext-banner")) return;
+  if (document.getElementById("cocosurf-ext-banner")) return;
   var d = document.createElement("div");
-  d.id = "antena-ext-banner";
+  d.id = "cocosurf-ext-banner";
   d.textContent = "EXTENSIÓN GECKO ACTIVA ✓";
   d.style.cssText =
     "position:fixed;top:0;left:0;right:0;background:#7FB08A;color:#000;" +
@@ -12,10 +12,10 @@
 
   function informar(tag) {
     try {
-      browser.runtime.sendNativeMessage("antena", {
+      browser.runtime.sendNativeMessage("cocosurf", {
         tag: tag,
         y: Math.round(window.scrollY),
-        ext: !!document.getElementById("antena-ext-banner"),
+        ext: !!document.getElementById("cocosurf-ext-banner"),
         title: document.title,
         url: location.href,
       });

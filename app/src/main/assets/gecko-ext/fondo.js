@@ -1,4 +1,4 @@
-// Extensión interna de Antena · fondo: redirige los pedidos de trozos de video de un servidor lento
+// Extensión interna de CocoSurf · fondo: redirige los pedidos de trozos de video de un servidor lento
 // a uno rápido de la misma familia (lo decide precarga.js tras probarlos; ver «Servidores lentos»).
 (function () {
   var desvios = {}; // servidor lento → servidor rápido

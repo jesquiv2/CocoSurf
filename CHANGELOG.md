@@ -1,5 +1,9 @@
 # Cambios
 
+## 2.0.0 — 2026-11-27
+- Arreglo de fondo de los anuncios: las pestañas que la app restaura al abrir (o tras actualizar) cargaban antes de que el bloqueador terminara de arrancar y se quedaban sin filtrar hasta cerrarlas y volver a abrirlas. Ahora toda carga espera a que el bloqueador esté listo (si no hay ninguno activo no espera; si tarda más de 40 s carga igual y recarga la página en cuanto llega). Sirve con el bloqueador que escojas.
+- Se cambia el nombre interno anterior en todo el proyecto: paquete, clases, archivos, extensión interna, base de datos y textos. El identificador de la app cambia a `com.cocosurf.app`, así que en la TV se instala como una app nueva (desinstala la anterior; los datos guardados no pasan solos: usa «Respaldo» antes).
+
 ## 1.13.1 — 2026-11-26
 - Se regresa al bloqueador de antes: uBlock Origin completo es otra vez el que se instala por defecto (una sola vez, si no está) y la tienda de complementos lo ofrece primero. Con la «Lite» y la limpieza automática de bloqueadores de la 1.11.0 los anuncios volvieron por todas partes. Se quita la migración, la lista de «pendientes por quitar» y la desinstalación automática. Lo demás (historial de pestañas, onda del clic, barras, distribución para Play) se mantiene. Cambio esperado: la primera página puede volver a tardar al abrir, como antes de la 1.10.3.
 

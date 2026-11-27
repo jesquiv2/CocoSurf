@@ -1,7 +1,7 @@
 # Plan: navegador TV estilo Edge + Brave
 
 > Documento de trabajo para discutir antes de escribir la primera línea de código.
-> Nombre provisional: **Antena** (candidatos: Antena · Vigía · Faro).
+> Nombre provisional: **CocoSurf** (candidatos: CocoSurf · Vigía · Faro).
 
 ## 1. Visión en una frase
 
@@ -237,8 +237,8 @@ configurable, sin blur ni fondos de vídeo, animaciones cortas y respetando
   el diagnóstico, útil para soporte.
 - **Dónde vive el APK (convención fijada por el usuario)**: cada
   `./gradlew assembleDebug` / `assembleRelease` copia el resultado a **la raíz del
-  repo** como `Antena-<versionName>-<variant>.apk` (vigente:
-  `Antena-0.2.0-m1-debug.apk`). Las copias de versiones anteriores se retiran al
+  repo** como `CocoSurf-<versionName>-<variant>.apk` (vigente:
+  `CocoSurf-0.2.0-m1-debug.apk`). Las copias de versiones anteriores se retiran al
   compilar (sólo vive la versión vigente en la raíz); la copia intermedia queda en
   `app/build/outputs/apk/debug/app-debug.apk`. Ese APK de la raíz es el que se
   instala con `adb install -r`.
@@ -333,7 +333,7 @@ Estimación orientativa: M0–M2 son el camino crítico; cada hito deja APK inst
 3. **Traducción**: ¿ML Kit on‑device (requiere GMS) o API cloud con clave?
 4. **Modelo exacto de tu Xiaomi** para fijar la matriz de pruebas (y Android TV
    mínimo: ¿dejamos minSdk 24 o subimos a 26/28?).
-5. **Nombre**: ¿Antena, Vigía, Faro u otro? (afecta a icono, banner y copy)
+5. **Nombre**: ¿CocoSurf, Vigía, Faro u otro? (afecta a icono, banner y copy)
 6. **Distribución**: ¿sólo APK por adb, o también Google Play a futuro?
 7. **Dashboard**: ¿feed de noticias incluido o sólo enlaces propios (más privado)?
 
@@ -354,7 +354,7 @@ fases; cada fase deja APK instalable y verificado en el emulador.
 | 1.3 | **`+` sin borde**; ningún botón con borde en la fila superior | Todos los controles sin stroke/outline |
 | 1.4 | Fila de dirección **sin bordes** en `←` `↻` `⌂` ni en el campo URL | Iconos "fantasma" sobre el casco |
 | 1.5 | **Altura única**: campo de dirección, botones de iconos y tabs **comparten la misma altura**, más baja que hoy | Todos miden lo mismo; nunca más altos que los botones |
-| 1.6 | Fuente de la URL: salir de IBM Plex Mono por una **sans normal** (fuente UI de Antena), tamaño menor | URL legible, sin look de consola |
+| 1.6 | Fuente de la URL: salir de IBM Plex Mono por una **sans normal** (fuente UI de CocoSurf), tamaño menor | URL legible, sin look de consola |
 | 1.7 | **Iconos nuevos** para `←` `↻` `⌂` y el resto (catálogo limpio, ej. Material Symbols) | Iconos consistentes, sin adornos |
 | 1.8 | Botón ☰: **quitar la palabra "Menú"**, solo las rayías | Icono solo |
 | 1.9 | **Botón flotante** abajo‑derecha, transparente, "ir al inicio de la página"; **interruptor en Barra de herramientas** para activarlo/desactivarlo | Aparece solo al hacer scroll; se puede ocultar desde el menú |
@@ -383,7 +383,7 @@ fases; cada fase deja APK instalable y verificado en el emulador.
 |---|---|---|
 | 4.1 | Link a **PDF**: tocarlo **lo muestra en el lugar** (visor embebido) **y** lo descarga en segundo plano | El usuario no sale de la app |
 | 4.2 | **Word / Excel / otros**: descarga + **Abrir con** (selector de apps instaladas) | Mismo flujo del selector del sistema |
-| 4.3 | **Vídeo / audio**: link abre un **modal reproductor** (con opción de ventana completa) | Reproduce dentro de Antena |
+| 4.3 | **Vídeo / audio**: link abre un **modal reproductor** (con opción de ventana completa) | Reproduce dentro de CocoSurf |
 | 4.4 | **Imágenes y cualquier archivo descargable** entran al registro | Aparecen en Descargas al terminar |
 | 4.5 | Registro de descargas end-to-end: **Abrir con / Eliminar / Ir a carpeta** | Las 3 acciones probadas en el emulador |
 | 4.6 | Arreglar que hoy **los PDF en enlaces no abren ni descargan** | Prueba con un PDF real |
@@ -469,7 +469,7 @@ probar acceso a los buscadores desde el menú (lo pone a prueba el usuario).
 ## 20. Spike GeckoView (M5) — resultado · 8/10/2026
 
 Se ejecutó el spike planeado en §4/§16 (M5) en un módulo aislado `:spike`
-(`com.antena.tv.spike`, sin tocar `:app`). Verificado en el emulador API 33.
+(`com.cocosurf.app.spike`, sin tocar `:app`). Verificado en el emulador API 33.
 
 ### Qué se demostró ✓
 
@@ -487,7 +487,7 @@ Se ejecutó el spike planeado en §4/§16 (M5) en un módulo aislado `:spike`
 | Métrica | Valor |
 |---|---|
 | APK arm64-v8a (TV) | **180.5 MB** (x86_64: 200 MB; universal 4 ABIs: 686 MB) |
-| Memoria (PSS, 1 pestaña + uBO + ext. de prueba) | **207 MB** vs **95 MB** de Antena con WebView → 2.2× |
+| Memoria (PSS, 1 pestaña + uBO + ext. de prueba) | **207 MB** vs **95 MB** de CocoSurf con WebView → 2.2× |
 | minSdk exigido por GeckoView | **26** (hoy minSdk=24 → decisión §18.4) |
 | Versión usada | `geckoview:141.0.20250806102122` (release) — la última compatible con Kotlin 2.1.20/AGP 8.11.1/SDK 35 |
 | Toolchain para GeckoView actual (153+) | Kotlin ≥2.2 + AGP 9.1 + compileSdk 37 (subida grande) |
@@ -539,7 +539,7 @@ real habría un diálogo de permisos estilo Firefox); instalación probada sólo
 Decidido por el usuario: llevar el pilot de fase 2 a la app real (§20, "decisión
 pendiente") sin romper el motor actual. WebView sigue siendo el motor por
 defecto; GeckoView entra como **motor de pestañas dedicado** con su panel de
-extensiones dentro de Antena.
+extensiones dentro de CocoSurf.
 
 | Cambio | Detalle |
 |---|---|
@@ -548,7 +548,7 @@ extensiones dentro de Antena.
 | `gecko/GeckoTab.kt` | Pestaña embebible: `AndroidView(GeckoSession)` con scroll por D-pad y callbacks de URL/progreso |
 | `browser/ComplementosPage.kt` | Panel: listar (● ACTIVA/○ DESACTIVA), alternar (`enable/disable`), desinstalar con confirmación, instalar desde AMO o URL `.xpi` libre, ir a la tienda, «🧩 Abrir pestaña con motor Gecko» |
 | `Overlay.Complementos` en ☰ | La entrada **Complementos** vive en el menú desplegable de la barra de direcciones (junto a Favoritos/Historial/Descargas) |
-| `assets/gecko-ext/` | Extensión interna `navegador@antena.tv` (banner + native messaging) instalada con `ensureBuiltIn` |
+| `assets/gecko-ext/` | Extensión interna `navegador@cocosurf.app` (banner + native messaging) instalada con `ensureBuiltIn` |
 
 **Verificado en emulador (API 33), de punta a punta:** menú ☰ → Complementos
 abre el panel; la extensión interna aparece ACTIVA y el toggle la desactiva y
@@ -605,18 +605,18 @@ tres causas raíz:
 
 | Pieza | Qué hace |
 |---|---|
-| Guard en `webTab()` → `onUrl`/`onTitle` (`BrowserScreen`) | `goHome()` carga `about:blank` en la sesión (para cortar el sonido de la página anterior) y el callback de ubicación **pisaba** `antena://inicio`: el dashboard desaparecía y «Inicio» se quedaba en una página en blanco **sin favoritos** — el fallo reportado. Ahora, mientras la pestaña está en `antena://`, las ubicaciones `about:` y los títulos se ignoran; el resto (p. ej. volver atrás) se acepta con normalidad |
+| Guard en `webTab()` → `onUrl`/`onTitle` (`BrowserScreen`) | `goHome()` carga `about:blank` en la sesión (para cortar el sonido de la página anterior) y el callback de ubicación **pisaba** `cocosurf://inicio`: el dashboard desaparecía y «Inicio» se quedaba en una página en blanco **sin favoritos** — el fallo reportado. Ahora, mientras la pestaña está en `cocosurf://`, las ubicaciones `about:` y los títulos se ignoran; el resto (p. ej. volver atrás) se acepta con normalidad |
 | `rememberCenterHandler` (`Panels`) | El sistema **reenvía la tecla** mientras se mantiene (key repeat) y cada reenvío reiniciaba el cronómetro: «mantener OK» nunca llegaba a los 500 ms y se registraba como clic corto — por eso no se podía eliminar ningún favorito. Sólo cuenta el primer KeyDOWN (el mismo criterio que `MainActivity` con `repeatCount == 0`); un down huérfano de más de 5 s se descarta |
 | `DashboardPage` | Rejilla con la ficha **«+ Añadir»** como primera celda (abre el modal de favorito), mantener OK elimina, `verticalScroll` para cuando haya muchas filas y estado vacío amable |
 | `Favicons.kt` (nuevo) | Favicon con caché en memoria (DuckDuckGo → Google s2 → inicial del nombre, fallos también cacheados). `FaviconBox` se usa en las fichas del inicio y en las filas del panel de Favoritos |
-| `Overlay.Star` desde `antena://` | El modal arranca en blanco (antes precargaba «Inicio» / `antena://inicio`) y una dirección sin esquema se guarda como `https://…` |
+| `Overlay.Star` desde `cocosurf://` | El modal arranca en blanco (antes precargaba «Inicio» / `cocosurf://inicio`) y una dirección sin esquema se guarda como `https://…` |
 | `LaunchedEffect(showDashboard)` | El dashboard refresca los favoritos cada vez que se muestra |
 
 **Verificado en emulador (API 33), de punta a punta:**
 
 | Prueba | Resultado |
 |---|---|
-| Página → chip Inicio | GitHub → Inicio: dashboard con las 6 fichas, barra `antena://inicio` y título «Inicio» (antes: `about:blank` sin favoritos) |
+| Página → chip Inicio | GitHub → Inicio: dashboard con las 6 fichas, barra `cocosurf://inicio` y título «Inicio» (antes: `about:blank` sin favoritos) |
 | Atrás desde el dashboard | Vuelve a `https://github.com/`; pulsar Inicio de nuevo regresa al dashboard |
 | Añadir | Ficha «+ Añadir» → modal en blanco → «Prueba» / `example.com` → aparece en la rejilla al guardar |
 | Eliminar | Mantener OK (evento crudo de 1 s, con el mismo timing que el mando) → «Prueba» desaparece; el resto queda intacto. Antes del fix el mismo gesto abría la página |
@@ -660,8 +660,8 @@ ninguna entrada fantasma.
 Dejaron de ser **overlays** encima del navegador (`Overlay.History`,
 `Overlay.Downloads`, `Overlay.Engine/Homepage/Toolbar`) y pasaron a ser
 **pestañas normales**, reutilizando el mecanismo que ya existía para la página de
-inicio: una URL interna (`antena://historial`, `antena://descargas`,
-`antena://config`) que el área de contenido dibuja con Compose en lugar de
+inicio: una URL interna (`cocosurf://historial`, `cocosurf://descargas`,
+`cocosurf://config`) que el área de contenido dibuja con Compose en lugar de
 GeckoView. Ningún cambio en el motor ni en `WebTab`.
 
 | Pieza | Qué resuelve |
@@ -677,7 +677,7 @@ GeckoView. Ningún cambio en el motor ni en `WebTab`.
 
 | Prueba | Resultado |
 |---|---|
-| Web → Historial | Pestaña propia (`antena://historial`) con «Limpiar» y «✕ Cerrar» |
+| Web → Historial | Pestaña propia (`cocosurf://historial`) con «Limpiar» y «✕ Cerrar» |
 | Alternar historial ↔ web | Filtro «Todo» y posición de scroll intactos (misma primera fila al volver) |
 | Entrada del historial → página | Se abre en pestaña web nueva; el historial sigue en la tira con su estado |
 | Descargas con un PDF real | `dummy.pdf` listado y conservado al cambiar de pestaña y volver |
@@ -736,10 +736,10 @@ aviso de éxito sólo se publica en el callback de `uninstall()`, un fallo llama
 `refrescar()` (que relee la verdad de Gecko) y el delegate sólo reacciona a
 `OnUninstalled`, que no llega si la operación no terminó.
 - Probando ese hueco se descubrió que Gecko **sí** deja desinstalar la extensión
-interna (`navegador@antena.tv`) y que la lista lo reflejó bien (desapareció).
+interna (`navegador@cocosurf.app`) y que la lista lo reflejó bien (desapareció).
 Es un comportamiento anterior a este paso (el chip ✕ siempre estuvo ahí) y se
 recupera solo: `ensureBuiltIn` la vuelve a montar al arrancar (verificado:
-`gecko: OnInstalled navegador@antena.tv v1.2` con la app reiniciada).
+`gecko: OnInstalled navegador@cocosurf.app v1.2` con la app reiniciada).
 - Una extensión **desactivada** sigue contando como instalada y por eso no vuelve
 a la tienda: se administra arriba con ENTER (ACTIVA/DESACTIVA).
 - Si AMO cambiara el id de un complemento, entra el respaldo por nombre; si
@@ -779,7 +779,7 @@ forma de ofrecer «repite esta búsqueda» ni de ordenar por uso.
 | `SugerenciasTest` (JVM, 16 casos) | Dirección vs búsqueda, texto recuperado, agrupado por URL/consulta, filtro por dominio/título/consulta sin acentos, prefijo antes que coincidencia parcial, tope de 15, historial vacío y `hostOf` |
 
 **Verificado en emulador (API 33) sobre la APK instalada** (la evidencia es la
-base de datos del propio navegador: `run-as … databases/antena.db`, leída junto
+base de datos del propio navegador: `run-as … databases/cocosurf.db`, leída junto
 al `-wal`, y las capturas de pantalla):
 
 | Prueba | Resultado |
@@ -990,7 +990,7 @@ Observaciones y límites (lo que no se pudo verificar, con el motivo):
 - **No hay API de estadísticas** de extensiones: el panel muestra únicamente el
   contador que la propia extensión pone en su acción (`badgeText`), sin inventar
   cifras.
-- La extensión **interna** del navegador (`navegador@antena.tv`, la del scroll)
+- La extensión **interna** del navegador (`navegador@cocosurf.app`, la del scroll)
   sigue apareciendo en la lista de Complementos —como antes— pero **no ocupa
   hueco** en la barra; sí recibe el icono alternativo de iniciales («AN»).
 - Si la extensión pide sus opciones y **no publica** ninguna página, se avisa tal
@@ -1006,7 +1006,7 @@ tocar nada).**
 
 - **Instaladas y funcionando**: uBlock Origin 1.75.0, Dark Reader 4.9.133 y
   SponsorBlock 6.1.7 —las tres ya montadas en los pasos 3 y 7— más la extensión
-  **interna** del navegador (`navegador@antena.tv`, la del scroll). El motor de
+  **interna** del navegador (`navegador@cocosurf.app`, la del scroll). El motor de
   la app es **GeckoView 141.0.20250806102122** (`geckoview-omni`, el mismo de
   Firefox 141); no hay WebView en ninguna pestaña.
 - **Cómo se administran**: `GeckoMotor` mantiene **un** `GeckoRuntime` por
@@ -1071,7 +1071,7 @@ que Gecko manda de verdad a cada host.
 |---|---|
 | 1 · Chrome Mask: máscara aplicada y quitada | Popup de la extensión abierto en su pestaña con el interruptor; con la máscara **puesta** la petición sale con `…Chrome/155.0.0.0 Mobile Safari/537.36` y `sec-ch-ua: "Chromium";v="155", "Google Chrome";v="155"`; con la máscara **quitada** vuelve `Mozilla/5.0 (Android 13; Mobile; rv:141.0) Gecko/141.0 Firefox/141.0` y **sin** `sec-ch-ua`. Ambas leídas en el servidor |
 | 2 · Privacy Badger: instalar y efecto medible | Instalada v2026.9.15 y su página de primera ejecución se abrió en una pestaña (la app atiende `tabs.create`). Efecto medido por cabeceras en el servidor: **activa** → `DNT=1; Sec-GPC=1`; **desactivada** (interruptor de Complementos) → la misma petición sale **sin** `DNT` ni `Sec-GPC`. Su popup abre `moz-extension://<uuid>/popup.html` y carga su interfaz (nodos `breakageWarning` y `reportBrokenSite`) |
-| 3 · Google Search Fixer: efecto medible | **Activa** → la petición a `www.google.com` sale con `Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) FxQuantum/141.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Mobile Safari/537.36`; **desactivada** → la misma petición sale con la UA normal de Antena (`Firefox/141.0`). Medido en el proxy local, sin depender de lo que sirva Google |
+| 3 · Google Search Fixer: efecto medible | **Activa** → la petición a `www.google.com` sale con `Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) FxQuantum/141.0 AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Mobile Safari/537.36`; **desactivada** → la misma petición sale con la UA normal de CocoSurf (`Firefox/141.0`). Medido en el proxy local, sin depender de lo que sirva Google |
 | 4 · Search by Image | **Descartada** (ver abajo) |
 | 5 · SponsorBlock: desinstalar y reinstalar | Ciclo completo sin errores (tabla de la causa, arriba) |
 | 6 · uBlock Origin sigue bloqueando | Con uBO **activa**, navegar a `http://doubleclick.net/px.png` produce `PageStart` pero **ninguna petición** llega a la red (el servidor no ve nada); con uBO **desactivada**, la misma navegación **sí** llega (`http://doubleclick.net/` y `…/px.png`) |

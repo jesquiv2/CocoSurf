@@ -16,6 +16,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Antena"
+rootProject.name = "CocoSurf"
 include(":app")
 include(":spike")

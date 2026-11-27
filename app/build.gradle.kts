@@ -8,17 +8,17 @@ plugins {
 }
 
 android {
-    namespace = "com.antena.tv"
+    namespace = "com.cocosurf.app"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.antena.tv"
+        applicationId = "com.cocosurf.app"
         // M5 · GeckoView exige minSdk 26 (PLAN §18.4/§20). La TV objetivo
         // (Xiaomi, Android 11 / API 30) queda cubierta.
         minSdk = 26
         targetSdk = 34
-        versionCode = 45
-        versionName = "1.13.1"
+        versionCode = 46
+        versionName = "2.0.0"
 
         ndk {
             // M5 · GeckoView arrastra nativos por ABI; sin filtro el APK sale
@@ -131,7 +131,7 @@ dependencies {
 }
 
 // Al compilar, el APK se copia siempre a la raíz del proyecto con la versión en
-// el nombre (Antena-<versión>-<variante>.apk). Las copias anteriores se retiran
+// el nombre (CocoSurf-<versión>-<variante>.apk). Las copias anteriores se retiran
 // para que sólo exista la versión vigente; si Windows retiene un archivo (visor
 // de archivos, antivirus), se reintenta y en último caso se deja nombre alterno.
 val versionForFile = android.defaultConfig.versionName ?: "0"
@@ -164,7 +164,7 @@ mapOf("assembleDirectoDebug" to "directo/debug", "assembleDirectoRelease" to "di
 
                 rootDirRef.listFiles { f: File ->
                     f.isFile && f.extension == "apk" &&
-                        (f.name.startsWith("CocoSurf-") || f.name.startsWith("Antena-")) &&
+                        (f.name.startsWith("CocoSurf-") || f.name.startsWith("CocoSurf-")) &&
                         f.name != targetName
                 }?.forEach { old ->
                     if (!deleteRetry(old)) {

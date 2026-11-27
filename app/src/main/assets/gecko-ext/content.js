@@ -1,4 +1,4 @@
-// Extensión interna de Antena · content script.
+// Extensión interna de CocoSurf · content script.
 // 1) Informa la posición de scroll de la página: es la señal que usa la
 //    barra superior para plegarse al bajar y desplegarse al subir.
 // 2) Gestiona «mantener OK» con el mando: Gecko no expone evaluate(), así que
@@ -6,8 +6,8 @@
 //    y emula el clic cuando la pulsación es corta. El menú contextual lo
 //    abre la app (MainActivity) al mantener OK >= 400 ms, usando ese caché.
 (function () {
-  if (window.__antenaExt) return;
-  window.__antenaExt = true;
+  if (window.__cocosurfExt) return;
+  window.__cocosurfExt = true;
 
   var holdTarget = null;
   var holdStart = 0;
@@ -22,7 +22,7 @@
       if (extra.img !== undefined) msg.img = extra.img || "";
     }
     try {
-      browser.runtime.sendNativeMessage("antena", msg);
+      browser.runtime.sendNativeMessage("cocosurf", msg);
     } catch (e) {
       /* el canal aún no está listo */
     }

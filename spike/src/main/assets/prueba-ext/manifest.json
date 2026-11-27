@@ -1,11 +1,11 @@
 {
   "manifest_version": 2,
-  "name": "Prueba Antena",
+  "name": "Prueba CocoSurf",
   "version": "1.0",
   "description": "Extensión mínima para el spike M5: banner visible + informes de scroll por native messaging.",
   "browser_specific_settings": {
     "gecko": {
-      "id": "prueba@antena.tv"
+      "id": "prueba@cocosurf.app"
     }
   },
   "permissions": ["nativeMessaging", "nativeMessagingFromContent", "geckoViewAddons"],
