@@ -1,15 +1,15 @@
 {
   "manifest_version": 2,
   "name": "Coco Surf",
-  "version": "1.10",
+  "version": "1.11",
   "description": "Extensión interna de CocoSurf: informa a la app la posición de scroll de la página (plega/despliega la barra superior con el mando).",
   "browser_specific_settings": {
     "gecko": {
       "id": "navegador@cocosurf.app"
     }
   },
-  "permissions": ["nativeMessaging", "nativeMessagingFromContent", "geckoViewAddons", "webRequest", "webRequestBlocking", "<all_urls>"],
-  "background": { "scripts": ["fondo.js"] },
+  "permissions": ["nativeMessaging", "nativeMessagingFromContent", "geckoViewAddons", "webRequest", "webRequestBlocking", "storage", "unlimitedStorage", "<all_urls>"],
+  "background": { "scripts": ["fondo.js", "lista.js"] },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],

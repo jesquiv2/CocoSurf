@@ -1,5 +1,9 @@
 # Cambios
 
+## 2.2.0 — 2026-11-27
+- Lista de anuncios propia de la app (HaGeZi «Pro Mini», la versión para aparatos con poca memoria: ~95 mil dominios). Bloquea por red la publicidad, el rastreo y las estafas con el bloqueador que escojas, o sin ninguno, y no depende de uBlock. Se baja sola la primera vez, se renueva sola cada día y las páginas abiertas se recargan al activarse. En Configuración → General → «Bloqueo de anuncios» se ve la lista, su estado, cuántos dominios tiene, cuándo se actualizó y cuántos bloqueó. Hallazgo en la TV: uBlock funciona, pero sus listas no traían los dominios de los banners de 1XBET de JK Anime; esta lista sí.
+- La lista no frena los anuncios que abren pestañas nuevas ni las redirecciones (eso lo hacen las protecciones de uBlock); por eso conviene tener uBlock Origin además.
+
 ## 2.1.0 — 2026-11-27
 - La actualización se hace de principio a fin con un solo toque. La fila del menú ocupa una sola línea («Actualizar a X»); al tocarla muestra un anillo con el porcentaje, y si cierras el menú el botón del menú parpadea con su anillo mientras descarga. Al terminar abre el instalador sola (la primera vez pide el permiso de «apps desconocidas» y, al volver, sigue sin que repitas nada). Android siempre pide una confirmación final en el instalador: eso no se puede saltar.
 - El bloqueador responde a lo que haces: si una página cargó antes de que hubiera bloqueador (instalación nueva, o se estaba instalando), se recarga sola unos segundos después de que llega, esperando a que pueda filtrar (si uBlock marca «!», reintenta). Y al instalar, activar, desactivar o quitar un bloqueador desde Complementos, las pestañas abiertas se recargan solas. Probado en el emulador con anuncios reales de JK Anime.

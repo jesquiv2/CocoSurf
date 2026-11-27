@@ -74,6 +74,25 @@ object GeckoMotor {
     var bloqueadorListo = false
         private set
 
+    /** Estado de la lista de dominios de anuncios que lleva la extensión interna (lista.js). */
+    data class ListaAnuncios(
+        val nombre: String,
+        /** cargando | lista | error */
+        val estado: String,
+        val detalle: String,
+        val dominios: Int,
+        /** Cuándo se bajó la copia en uso (ms desde 1970); 0 si aún no hay. */
+        val fecha: Long,
+        val bloqueadas: Int,
+    )
+
+    private val _listaAnuncios = MutableStateFlow<ListaAnuncios?>(null)
+    val listaAnuncios: StateFlow<ListaAnuncios?> = _listaAnuncios
+
+    /** La lista de anuncios ya dijo cómo está (lista o con error): las páginas dejan de esperarla. */
+    @Volatile
+    private var listaDijoEstado = false
+
     /** Ya llegó la lista de extensiones del motor (para saber si hay un bloqueador que esperar). */
     @Volatile
     private var listaCargada = false
@@ -89,6 +108,35 @@ object GeckoMotor {
         accionesPorSesion[session]?.entries
             ?.firstOrNull { esBloqueador(it.key, it.value.nombre) }
             ?.value?.badge
+
+    private fun listaRecibida(o: org.json.JSONObject) {
+        val nueva = ListaAnuncios(
+            nombre = o.optString("nombre"),
+            estado = o.optString("estado"),
+            detalle = o.optString("detalle"),
+            dominios = o.optInt("total"),
+            fecha = o.optLong("fecha"),
+            bloqueadas = o.optInt("bloqueadas"),
+        )
+        val antes = _listaAnuncios.value
+        _listaAnuncios.value = nueva
+        if (antes?.estado != nueva.estado || antes.dominios != nueva.dominios) {
+            Bitacora.add(
+                LogKind.SISTEMA,
+                "Lista de anuncios (${nueva.nombre}): ${nueva.estado}, ${nueva.dominios} dominios" +
+                    (if (nueva.detalle.isNotBlank()) " · ${nueva.detalle}" else ""),
+            )
+        }
+        if (!listaDijoEstado && (nueva.estado == "lista" || nueva.estado == "error")) {
+            listaDijoEstado = true
+        }
+        // Una lista que se bajó por primera vez con páginas ya abiertas: se recargan para que pasen por ella.
+        if (o.optBoolean("nueva")) {
+            Handler(Looper.getMainLooper()).postDelayed({
+                sesiones.toList().filter { it !== sesionCalentamiento }.forEach { runCatching { it.reload() } }
+            }, 1_500)
+        }
+    }
 
     /**
      * Se instaló, activó, desactivó o quitó un bloqueador mientras ya había páginas abiertas: esas
@@ -134,6 +182,8 @@ object GeckoMotor {
         lateinit var paso: Runnable
         paso = Runnable {
             when {
+                // Las páginas esperan a la lista de anuncios propia (la baja o la lee en 1–3 s)…
+                !listaDijoEstado && android.os.SystemClock.elapsedRealtime() < limite -> h.postDelayed(paso, 250)
                 bloqueadorListo -> accion()
                 sinBloqueadorQueEsperar() -> {
                     // Todavía no hay bloqueador (p. ej. se está instalando): la página carga, y si luego
@@ -1020,6 +1070,7 @@ object GeckoMotor {
                         Log.i(TAG, "precarga: " + obj.optString("msg"))
                         com.cocosurf.app.log.Bitacora.add(com.cocosurf.app.log.LogKind.SISTEMA, "Precarga de video: " + obj.optString("msg"))
                     }
+                    obj.optString("tag") == "lista" -> listaRecibida(obj)
                     obj.optString("tag") == "precargaestado" -> PrecargaEstado.poner(
                         PrecargaEstado.Estado(
                             servidor = obj.optString("host"),

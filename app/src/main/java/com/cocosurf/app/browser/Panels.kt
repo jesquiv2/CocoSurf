@@ -49,6 +49,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -887,6 +888,59 @@ fun MenuRow(
     }
 }
 
+/** Cuánto hace de una fecha, en palabras cortas («hace 3 h»). */
+private fun hace(ms: Long): String {
+    if (ms <= 0) return "aún no"
+    val min = ((System.currentTimeMillis() - ms) / 60_000).coerceAtLeast(0)
+    return when {
+        min < 1 -> "ahora mismo"
+        min < 60 -> "hace $min min"
+        min < 48 * 60 -> "hace ${min / 60} h"
+        else -> "hace ${min / (24 * 60)} días"
+    }
+}
+
+/** La lista de dominios de anuncios de la app: qué lista es, cuántos dominios tiene y cuándo se renovó. */
+@Composable
+private fun AjusteListaAnuncios() {
+    val lista by com.cocosurf.app.gecko.GeckoMotor.listaAnuncios.collectAsState()
+    val l = lista
+    Text(
+        "Lista de anuncios propia de la app. Bloquea por red los dominios de publicidad, rastreo y estafas, " +
+            "con el bloqueador que tengas (o sin ninguno). Se baja y se renueva sola cada día.",
+        style = CocoSurfType.meta,
+        color = FosforoTenue,
+        modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 6.dp),
+    )
+    val estado = when {
+        l == null -> "Arrancando…"
+        l.estado == "lista" -> "Activa"
+        l.estado == "error" -> "Sin lista: ${l.detalle.ifBlank { "no se pudo bajar" }}"
+        else -> "Descargando…"
+    }
+    FilaDato("Lista", l?.nombre?.ifBlank { null } ?: "HaGeZi Pro Mini")
+    Separador(Modifier.padding(horizontal = 14.dp))
+    FilaDato("Estado", estado)
+    Separador(Modifier.padding(horizontal = 14.dp))
+    FilaDato("Dominios", if (l != null && l.dominios > 0) "%,d".format(l.dominios) else "—")
+    Separador(Modifier.padding(horizontal = 14.dp))
+    FilaDato("Última actualización", hace(l?.fecha ?: 0))
+    Separador(Modifier.padding(horizontal = 14.dp))
+    FilaDato("Bloqueados desde que abriste la app", (l?.bloqueadas ?: 0).toString())
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun FilaDato(titulo: String, valor: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(titulo, style = CocoSurfType.body, color = Fosforo, modifier = Modifier.weight(1f))
+        Text(valor, style = CocoSurfType.monoSmall, color = Ambar)
+    }
+}
+
 /** Anillo de progreso (0–100): pista tenue y arco ámbar que crece desde arriba. */
 @Composable
 fun AnilloProgreso(pct: Int, modifier: Modifier = Modifier, grosor: androidx.compose.ui.unit.Dp = 3.dp) {
@@ -1697,6 +1751,8 @@ fun ConfiguracionPage(
 
             when (pestana) {
                 0 -> {
+                    SeccionAjustes("Bloqueo de anuncios") { AjusteListaAnuncios() }
+
                     SeccionAjustes("Apariencia") {
                         Text(
                             "Color de acento",
